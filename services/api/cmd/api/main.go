@@ -28,7 +28,7 @@ func main() {
 	defer store.Close()
 	server := &http.Server{
 		Addr:              address(),
-		Handler:           httpapi.New(store),
+		Handler:           httpapi.New(store, authDomain()),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -55,4 +55,11 @@ func address() string {
 		return value
 	}
 	return ":8080"
+}
+
+func authDomain() string {
+	if value := os.Getenv("AUTH_DOMAIN"); value != "" {
+		return value
+	}
+	return "localhost"
 }

@@ -7,7 +7,9 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
+	"github.com/UpgradeRail/upgraderail-console/services/api/internal/auth"
 	"github.com/UpgradeRail/upgraderail-console/services/api/internal/store"
 	"github.com/jackc/pgx/v5"
 )
@@ -22,10 +24,16 @@ type Repository interface {
 	ListProposals(context.Context, store.Page) ([]store.Proposal, error)
 	GetProposal(context.Context, string) (store.Proposal, error)
 	ListApprovals(context.Context, string, store.Page) ([]store.Approval, error)
+	CreateChallenge(context.Context, auth.Challenge) error
+	GetChallenge(context.Context, string) (auth.StoredChallenge, error)
+	ConsumeChallenge(context.Context, string, string, time.Time) (bool, error)
+	CreateSession(context.Context, string, string, string, string, time.Time) error
+	RevokeSession(context.Context, string, time.Time) error
 }
 
-func New(repository Repository) http.Handler {
+func New(repository Repository, domain string) http.Handler {
 	mux := http.NewServeMux()
+	auth.Register(mux, repository, domain)
 	mux.HandleFunc("GET /api/v1/health", func(w http.ResponseWriter, _ *http.Request) {
 		write(w, http.StatusOK, map[string]string{"status": "ok"})
 	})

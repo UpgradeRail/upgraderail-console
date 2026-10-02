@@ -157,6 +157,7 @@ CREATE TABLE indexer_checkpoints (
 
 CREATE TABLE auth_challenges (
     id TEXT PRIMARY KEY,
+    domain TEXT NOT NULL,
     network_id TEXT NOT NULL REFERENCES networks(id),
     public_address TEXT NOT NULL,
     nonce_hash TEXT NOT NULL UNIQUE,
