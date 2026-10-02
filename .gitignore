@@ -5,7 +5,7 @@ playwright-report/
 test-results/
 .env
 .env.local
-artifacts/
+/artifacts/
 tmp/
 *.log
 *.tsbuildinfo
