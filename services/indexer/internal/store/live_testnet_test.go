@@ -41,8 +41,8 @@ func TestLiveReadOnlyTestnetControllerProjection(t *testing.T) {
 	controllerID := "controller-live-" + suffix
 	_, err = store.pool.Exec(ctx, `
 		INSERT INTO networks (id, passphrase, rpc_url, protocol_target)
-		VALUES ($1, 'Test SDF Network ; September 2015', $2, 28)
-	`, networkID, endpoint)
+		VALUES ($1, $2, $3, 28)
+	`, networkID, "Test SDF Network ; September 2015 / "+suffix, endpoint)
 	if err != nil {
 		t.Fatal(err)
 	}
