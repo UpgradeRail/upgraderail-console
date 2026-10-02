@@ -9,14 +9,26 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/UpgradeRail/upgraderail-console/services/api/internal/health"
+	"github.com/UpgradeRail/upgraderail-console/services/api/internal/httpapi"
+	"github.com/UpgradeRail/upgraderail-console/services/api/internal/store"
 )
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		logger.Error("DATABASE_URL is required", "service", "api")
+		os.Exit(1)
+	}
+	store, err := store.Open(context.Background(), databaseURL)
+	if err != nil {
+		logger.Error("database startup failed", "service", "api", "error", err)
+		os.Exit(1)
+	}
+	defer store.Close()
 	server := &http.Server{
 		Addr:              address(),
-		Handler:           health.New(nil),
+		Handler:           httpapi.New(store),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
