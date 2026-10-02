@@ -3,8 +3,11 @@ package httpapi
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -29,6 +32,11 @@ type Repository interface {
 	ConsumeChallenge(context.Context, string, string, time.Time) (bool, error)
 	CreateSession(context.Context, string, string, string, string, time.Time) error
 	RevokeSession(context.Context, string, time.Time) error
+	GetSession(context.Context, string) (store.Session, error)
+	CreateAnalysis(context.Context, store.AnalysisInput) error
+	GetAnalysis(context.Context, string) (store.AnalysisJob, error)
+	GetAnalysisReport(context.Context, string) (store.AnalysisReport, error)
+	GetManifest(context.Context, string) (store.Manifest, error)
 }
 
 func New(repository Repository, domain string) http.Handler {
@@ -99,7 +107,73 @@ func New(repository Repository, domain string) http.Handler {
 		values, err := repository.ListApprovals(r.Context(), r.PathValue("id"), page)
 		respond(w, values, err)
 	})
+	mux.HandleFunc("POST /api/v1/analyses", func(w http.ResponseWriter, request *http.Request) {
+		session, ok := requireSession(w, request, repository)
+		if !ok {
+			return
+		}
+		var input struct{ Network, CurrentArtifactID, CandidateArtifactID string }
+		if !decode(request, &input) {
+			errorResponse(w, http.StatusBadRequest, "invalid_json", "Request body must be valid JSON.")
+			return
+		}
+		if input.Network == "" || input.CandidateArtifactID == "" {
+			errorResponse(w, http.StatusBadRequest, "invalid_analysis", "Network and candidate artifact are required.")
+			return
+		}
+		if input.Network != session.Network {
+			errorResponse(w, http.StatusForbidden, "network_mismatch", "Session does not authorize this network.")
+			return
+		}
+		id := randomID()
+		err := repository.CreateAnalysis(request.Context(), store.AnalysisInput{ID: id, Network: input.Network, CurrentArtifactID: input.CurrentArtifactID, CandidateArtifactID: input.CandidateArtifactID, CreatedBy: session.Address})
+		if err != nil {
+			errorResponse(w, http.StatusInternalServerError, "analysis_unavailable", "Analysis job could not be created.")
+			return
+		}
+		write(w, http.StatusAccepted, map[string]string{"id": id, "status": "queued"})
+	})
+	mux.HandleFunc("GET /api/v1/analyses/{id}", func(w http.ResponseWriter, r *http.Request) {
+		value, err := repository.GetAnalysis(r.Context(), r.PathValue("id"))
+		respond(w, value, err)
+	})
+	mux.HandleFunc("GET /api/v1/analyses/{id}/report", func(w http.ResponseWriter, r *http.Request) {
+		value, err := repository.GetAnalysisReport(r.Context(), r.PathValue("id"))
+		respond(w, value, err)
+	})
+	mux.HandleFunc("GET /api/v1/analyses/{id}/manifest", func(w http.ResponseWriter, r *http.Request) {
+		value, err := repository.GetManifest(r.Context(), r.PathValue("id"))
+		respond(w, value, err)
+	})
 	return mux
+}
+
+func requireSession(w http.ResponseWriter, request *http.Request, repository Repository) (store.Session, bool) {
+	cookie, err := request.Cookie("upgraderail_session")
+	if err != nil {
+		errorResponse(w, http.StatusUnauthorized, "session_required", "Sign in with a wallet before creating an analysis.")
+		return store.Session{}, false
+	}
+	session, err := repository.GetSession(request.Context(), auth.Hash(cookie.Value))
+	if errors.Is(err, pgx.ErrNoRows) {
+		errorResponse(w, http.StatusUnauthorized, "session_expired", "Your session is no longer active.")
+		return store.Session{}, false
+	}
+	if err != nil {
+		errorResponse(w, http.StatusInternalServerError, "session_unavailable", "Session could not be verified.")
+		return store.Session{}, false
+	}
+	return session, true
+}
+func randomID() string {
+	bytes := make([]byte, 24)
+	if _, err := rand.Read(bytes); err != nil {
+		panic("cryptographic randomness unavailable")
+	}
+	return hex.EncodeToString(bytes)
+}
+func decode(request *http.Request, output any) bool {
+	return json.NewDecoder(io.LimitReader(request.Body, 16<<10)).Decode(output) == nil
 }
 
 func parsePage(w http.ResponseWriter, request *http.Request) (store.Page, bool) {
