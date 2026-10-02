@@ -1,4 +1,4 @@
-.PHONY: install dev build lint test go-test vet verify-env smoke-test
+.PHONY: install dev build lint test go-test vet verify-env verify-fresh-migrations smoke-test
 
 install:
 	pnpm install --frozen-lockfile
@@ -23,6 +23,9 @@ vet:
 
 verify-env:
 	./scripts/verify-env.sh
+
+verify-fresh-migrations:
+	./scripts/verify-fresh-migrations.sh
 
 smoke-test:
 	./scripts/smoke-test.sh
