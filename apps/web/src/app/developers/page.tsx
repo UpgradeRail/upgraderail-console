@@ -1,0 +1,3 @@
+import { SiteHeader } from "@/components/site-header";
+
+export default function DevelopersPage() { return <><SiteHeader /><main className="content-page"><span className="eyebrow">DEVELOPERS</span><h1>Integrate the systems that already own the work.</h1><p>UpgradeController owns governance. UpgradeRail Engine owns Protocol 28 artifact analysis. Console provides typed APIs and wallet-facing transaction flow around both.</p><section><h2>Interfaces</h2><ul><li>Versioned read APIs under <code>/api/v1</code>.</li><li>Engine JSON from <code>inspect</code>, <code>compare</code>, and <code>check</code>.</li><li>Generated bindings from the actual controller specification.</li><li>Unsigned Stellar SDK transaction builders only.</li></ul></section></main></>; }

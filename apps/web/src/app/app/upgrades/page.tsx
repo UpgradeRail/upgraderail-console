@@ -1,0 +1,2 @@
+import { UnavailableState } from "@/components/empty-state";
+export default function UpgradesPage() { return <section className="console-page"><header className="console-heading"><div><span className="eyebrow">UPGRADES</span><h1>Governed proposals</h1><p>Approval and timelock state comes from UpgradeController projections.</p></div></header><UnavailableState title="No proposals are indexed" /></section>; }

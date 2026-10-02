@@ -1,0 +1,3 @@
+import { SiteHeader } from "@/components/site-header";
+
+export default function HowItWorksPage() { return <><SiteHeader /><main className="content-page"><span className="eyebrow">PROCESS</span><h1>Evidence first. Governance second. Execution after the timelock.</h1><p>The Console does not replace the controller or the analyzer. It makes their independent evidence easier to review.</p><section><h2>Release flow</h2><ol><li>Upload a candidate artifact for Engine analysis.</li><li>Review static findings and configured runtime evidence.</li><li>Commit a release manifest when creating an on-chain proposal.</li><li>Sign approvals in the connected wallet.</li><li>Execute after the controller’s timelock has elapsed.</li></ol></section></main></>; }

@@ -1,0 +1,3 @@
+import { SiteHeader } from "@/components/site-header";
+
+export default function ProductPage() { return <><SiteHeader /><main className="content-page"><span className="eyebrow">PRODUCT</span><h1>A browser view of governed upgrade evidence.</h1><p>UpgradeRail Console brings the controller’s on-chain lifecycle and Engine’s analysis reports into one operational interface.</p><section><h2>What the Console does</h2><ul><li>Displays indexer-backed fleet and proposal history.</li><li>Coordinates artifact upload and analysis jobs without executing WASM in the browser.</li><li>Builds unsigned transactions for the wallet to sign.</li><li>Compares stored release manifest hashes with on-chain commitments.</li></ul></section></main></>; }

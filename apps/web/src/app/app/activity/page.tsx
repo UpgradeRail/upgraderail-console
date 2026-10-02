@@ -1,0 +1,2 @@
+import { UnavailableState } from "@/components/empty-state";
+export default function ActivityPage() { return <section className="console-page"><header className="console-heading"><div><span className="eyebrow">ACTIVITY</span><h1>Event history</h1><p>Every displayed event retains its ledger, transaction hash, and event index.</p></div></header><UnavailableState title="No event history is indexed" /></section>; }

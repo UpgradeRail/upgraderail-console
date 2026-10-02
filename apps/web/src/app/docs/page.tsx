@@ -1,0 +1,3 @@
+import { SiteHeader } from "@/components/site-header";
+
+export default function DocsPage() { return <><SiteHeader /><main className="content-page"><span className="eyebrow">DOCUMENTATION</span><h1>Implementation documentation is published with each service.</h1><p>The Console documents its own architecture, APIs, indexer behavior, Engine boundary, wallet flow, and deployment requirements. It does not duplicate contract or analyzer documentation.</p><section><h2>Available documents</h2><ul><li>Architecture and database schema</li><li>API and indexer contracts</li><li>Engine integration and artifact limits</li><li>Wallet transaction lifecycle</li><li>Deployment and known limitations</li></ul></section></main></>; }

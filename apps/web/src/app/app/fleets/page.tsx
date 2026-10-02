@@ -1,0 +1,2 @@
+import { UnavailableState } from "@/components/empty-state";
+export default function FleetsPage() { return <section className="console-page"><header className="console-heading"><div><span className="eyebrow">FLEETS</span><h1>Managed fleets</h1><p>Fleet membership and executable history are derived from controller events.</p></div></header><UnavailableState title="No fleets are indexed" detail="Run the indexer with a configured controller to build this read model." /></section>; }
