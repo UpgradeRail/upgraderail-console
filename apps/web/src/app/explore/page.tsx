@@ -1,4 +1,4 @@
 import { SiteHeader } from "@/components/site-header";
-import { UnavailableState } from "@/components/empty-state";
+import { DataList } from "@/components/data-list";
 
-export default function ExplorePage() { return <><SiteHeader /><main className="explore-layout"><span className="eyebrow">PUBLIC EXPLORER</span><h1>Controller activity, when indexed.</h1><p className="data-note">This explorer reads from the Console indexer. It currently has no configured public API, so it does not present sample fleets or proposals as live activity.</p><UnavailableState title="Public indexing is not configured" detail="Set an API base URL and run the indexer against an UpgradeController to publish verified public history." /></main></>; }
+export default function ExplorePage() { return <><SiteHeader /><main className="explore-layout"><span className="eyebrow">PUBLIC EXPLORER</span><h1>Controller activity, when indexed.</h1><p className="data-note">This explorer reads only from the Console indexer. It does not present sample fleets or proposals as live activity.</p><DataList endpoint="/api/v1/fleets" empty="No public fleets are indexed" columns={[{ key: "tag", label: "Tag" }, { key: "fleet_hash", label: "Fleet" }, { key: "current_wasm_hash", label: "Current executable" }]} /></main></>; }
