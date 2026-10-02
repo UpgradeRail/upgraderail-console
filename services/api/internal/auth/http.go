@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -76,6 +77,10 @@ func Register(mux *http.ServeMux, repository Repository, domain string) {
 		writeJSON(w, http.StatusOK, map[string]any{"address": stored.Address, "network": stored.Network, "expires_at": expires})
 	})
 	mux.HandleFunc("POST /api/v1/auth/logout", func(w http.ResponseWriter, request *http.Request) {
+		if !matchesDomain(request.Header.Get("Origin"), domain) {
+			writeError(w, http.StatusForbidden, "origin_required", "Request origin is not allowed.")
+			return
+		}
 		cookie, err := request.Cookie("upgraderail_session")
 		if err == nil {
 			_ = repository.RevokeSession(request.Context(), Hash(cookie.Value), time.Now())
@@ -83,6 +88,11 @@ func Register(mux *http.ServeMux, repository Repository, domain string) {
 		http.SetCookie(w, &http.Cookie{Name: "upgraderail_session", Value: "", Path: "/", HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode, MaxAge: -1})
 		writeJSON(w, http.StatusNoContent, nil)
 	})
+}
+
+func matchesDomain(origin, domain string) bool {
+	parsed, err := url.Parse(origin)
+	return err == nil && parsed.Hostname() == domain
 }
 
 func randomID() string {
