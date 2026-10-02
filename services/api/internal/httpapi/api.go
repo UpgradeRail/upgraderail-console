@@ -117,8 +117,8 @@ func New(repository Repository, domain string) http.Handler {
 			errorResponse(w, http.StatusBadRequest, "invalid_json", "Request body must be valid JSON.")
 			return
 		}
-		if input.Network == "" || input.CandidateArtifactID == "" {
-			errorResponse(w, http.StatusBadRequest, "invalid_analysis", "Network and candidate artifact are required.")
+		if input.Network == "" || input.CurrentArtifactID == "" || input.CandidateArtifactID == "" {
+			errorResponse(w, http.StatusBadRequest, "invalid_analysis", "Network, current artifact, and candidate artifact are required.")
 			return
 		}
 		if input.Network != session.Network {
