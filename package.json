@@ -1,0 +1,13 @@
+{
+  "name": "upgraderail-console",
+  "private": true,
+  "packageManager": "pnpm@12.8.2",
+  "scripts": {
+    "build": "pnpm --filter @upgraderail/web build",
+    "dev": "pnpm --filter @upgraderail/web dev",
+    "lint": "pnpm --filter @upgraderail/web lint",
+    "typecheck": "pnpm --filter @upgraderail/web typecheck",
+    "test": "pnpm --filter @upgraderail/web test"
+  },
+  "engines": { "node": ">=24.21.0" }
+}
