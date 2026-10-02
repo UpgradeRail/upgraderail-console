@@ -13,3 +13,7 @@ This checkout does not have configured production API, worker, indexer, database
 ## Browser wallet verification
 
 Freighter browser-extension verification has not run in this environment. The required browser automation executable is also unavailable, so visual browser verification remains unverified despite a successful local HTTP response and production build.
+
+## Local worker Engine execution
+
+This host provides Rust 1.97.1. The checked-out Engine workspace requires Rust 1.98.1 or later, and the supplied Engine verification evidence uses Rust 1.99.0. The worker integration code compiles and validates Engine JSON, but a database-backed worker job invoking the local Engine binary could not run on this host.
