@@ -13,4 +13,25 @@ Read-only verification ran on 2026-10-02 against the controller recorded by `upg
 
 The deployment record reports observed Testnet Protocol 29. These reads do not alter UpgradeRail Engine’s Protocol 28 analysis profile or the Mainnet Protocol 28 production target.
 
+Verification commands used read-only RPC calls and did not submit transactions:
+
+```text
+stellar contract invoke --rpc-url https://soroban-testnet.stellar.org \
+  --network-passphrase "Test SDF Network ; September 2015" \
+  --contract-id CCMC4WGOCRU34RYO4YK64QVDNOMJBS27SBHH42ARQ7NOCQPZMRZMSLR3 \
+  --source-account GB6NGKUWJFXWAVE5K3UNLGTPTBGD3TDVOZAA3ITOBIMUR25SGMLGKRA6 \
+  --send no -- get_policy
+```
+
+The indexer read the same controller events from Stellar RPC with `xdrFormat: "json"` and applied them to a local migrated PostgreSQL database:
+
+```text
+DATABASE_URL=postgresql://upgraderail:upgraderail@127.0.0.1:55433/upgraderail_migration_verify \
+STELLAR_RPC_LIVE=1 \
+STELLAR_RPC_URL=https://soroban-testnet.stellar.org \
+UPGRADERAIL_CONTROLLER_ID=CCMC4WGOCRU34RYO4YK64QVDNOMJBS27SBHH42ARQ7NOCQPZMRZMSLR3 \
+UPGRADERAIL_START_LEDGER=4969430 \
+go test ./services/indexer/internal/store -run TestLiveReadOnlyTestnetControllerProjection -count=1 -v
+```
+
 No wallet, write transaction, Testnet current/candidate fleet-pair simulation, or browser extension verification was performed.
