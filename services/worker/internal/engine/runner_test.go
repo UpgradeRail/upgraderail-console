@@ -2,6 +2,8 @@ package engine
 
 import (
 	"context"
+	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -27,5 +29,16 @@ func TestDecodeReportRequiresEvidence(t *testing.T) {
 	_, err := decodeReport([]byte(`{"status":"READY","findings":[]}`))
 	if err == nil {
 		t.Fatal("expected missing evidence to fail")
+	}
+}
+
+func TestSafeEnvironmentDoesNotForwardSecrets(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://secret")
+	t.Setenv("SESSION_SECRET", "secret")
+	t.Setenv("PATH", os.Getenv("PATH"))
+	for _, value := range safeEnvironment() {
+		if strings.Contains(value, "DATABASE_URL=") || strings.Contains(value, "SESSION_SECRET=") {
+			t.Fatalf("secret environment variable was forwarded: %q", value)
+		}
 	}
 }
