@@ -14,6 +14,8 @@ This checkout does not have configured production API, worker, indexer, database
 
 Freighter browser-extension verification has not run in this environment. The required browser automation executable is also unavailable, so visual browser verification remains unverified despite a successful local HTTP response and production build.
 
-## Local worker Engine execution
+## Worker Engine execution
 
-This host provides Rust 1.97.1. The checked-out Engine workspace requires Rust 1.98.1 or later, and the supplied Engine verification evidence uses Rust 1.99.0. The worker integration code compiles and validates Engine JSON, but a database-backed worker job invoking the local Engine binary could not run on this host.
+Rust `1.99.0` is installed on this host and can build the checked-out Engine workspace, which requires Rust `1.98.1` or later. A database-backed worker job invoking the real Engine binary was verified locally with committed contracts WASM fixtures.
+
+The verification does not prove live Testnet current-versus-candidate simulation. The Engine report still preserves `NOT PROVEN BY STATIC ANALYSIS` and `NOT TESTED` evidence states where the Engine cannot prove storage compatibility or runtime authorization behavior.
