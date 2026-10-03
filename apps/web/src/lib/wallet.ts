@@ -122,7 +122,7 @@ export function transactionLifecycle(status: string, hash?: string, message?: st
 export function stateForWalletError(message: string): WalletState {
   if (/reject|declin|cancel/i.test(message)) return { kind: "user_rejected", message };
   if (/locked|unlock|account not loaded|no account/i.test(message)) return { kind: "account_locked", message };
-  if (/network|timed out|did not answer|could not be reached/i.test(message)) return { kind: "network_unavailable", message };
+  if (/network|timed out|did not answer/i.test(message)) return { kind: "network_unavailable", message };
   return { kind: "failed", message };
 }
 

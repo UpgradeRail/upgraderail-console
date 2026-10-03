@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { connectWallet, readWallet, signWalletMessage, signWalletTransaction, transactionLifecycle } from "./wallet";
+import { connectWallet, readWallet, signWalletMessage, signWalletTransaction, stateForWalletError, transactionLifecycle } from "./wallet";
 import { getNetwork, isConnected, requestAccess, signMessage, signTransaction } from "@stellar/freighter-api";
 
 vi.mock("@stellar/freighter-api", () => ({
@@ -33,7 +33,7 @@ describe("wallet detection and signing", () => {
   it("detects an unlocked wallet without requesting account approval", async () => {
     mocked.isConnected.mockResolvedValue({ isConnected: true });
     mocked.getNetwork.mockResolvedValue(testnet);
-    await expect(readWallet(testnet.networkPassphrase)).resolves.toEqual({ kind: "connect_ready", network: { name: "TESTNET", passphrase: testnet.networkPassphrase } });
+    await expect(readWallet(testnet.networkPassphrase)).resolves.toEqual({ kind: "connect_ready", network: { id: "testnet", name: "TESTNET", passphrase: testnet.networkPassphrase } });
     expect(mocked.requestAccess).not.toHaveBeenCalled();
   });
 
@@ -57,10 +57,17 @@ describe("wallet detection and signing", () => {
     await expect(readWallet(testnet.networkPassphrase)).resolves.toEqual({ kind: "wrong_network", expected: testnet.networkPassphrase, actual: "PUBLIC" });
   });
 
+  it("keeps API connectivity failures separate from wallet network failures", () => {
+    expect(stateForWalletError("The Console API could not be reached: Failed to fetch")).toEqual({
+      kind: "failed",
+      message: "The Console API could not be reached: Failed to fetch",
+    });
+  });
+
   it("connects with the explicitly approved account and selected network", async () => {
     mocked.requestAccess.mockResolvedValue({ address: "GTEST" });
     mocked.getNetwork.mockResolvedValue(testnet);
-    await expect(connectWallet(testnet.networkPassphrase)).resolves.toEqual({ kind: "connected", address: "GTEST", network: { name: "TESTNET", passphrase: testnet.networkPassphrase } });
+    await expect(connectWallet(testnet.networkPassphrase)).resolves.toEqual({ kind: "connected", address: "GTEST", network: { id: "testnet", name: "TESTNET", passphrase: testnet.networkPassphrase } });
   });
 
   it("keeps access rejection distinct from a wallet failure", async () => {

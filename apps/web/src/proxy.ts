@@ -7,7 +7,7 @@ export function proxy(request: NextRequest) {
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${development ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'",
-    "connect-src 'self' https: wss:" + (development ? " ws:" : ""),
+    "connect-src 'self' https:" + (development ? " http: ws:" : " wss:"),
     "img-src 'self' data: blob:",
     "font-src 'self' data:",
     "object-src 'none'",
