@@ -34,4 +34,10 @@ UPGRADERAIL_START_LEDGER=4969430 \
 go test ./services/indexer/internal/store -run TestLiveReadOnlyTestnetControllerProjection -count=1 -v
 ```
 
-No wallet connection, write transaction, or Testnet current/candidate fleet-pair simulation was performed. The Freighter popup was opened in Chrome on 2026-10-03, but the console stayed at “Checking wallet…” and “Network unavailable”; no wallet connection or signing was verified.
+The same Chrome profile subsequently connected to Freighter on Testnet, completed challenge signing and authenticated session creation, and signed a simulated `maintain_controller` transaction. See `docs/wallet.md`. No write transaction or Testnet current/candidate fleet-pair simulation was performed.
+
+## Maintenance flow and write limitation
+
+The selected verification call is `maintain_controller`, which extends the deployed controller's instance storage lifetime without changing governance policy, proposals, fleets, approvals, or controller version. The console pins the Testnet controller ID and live WASM hash from `upgraderail-contracts/deployments/testnet.json`, verifies the RPC network passphrase, reads live epoch/version/account state, simulates the call, and rejects stale state before signing and submission. The checked-in generated binding predates this deployed method, so this single verified method is invoked through the Stellar SDK `Contract.call` API after checking the live contract hash and interface. The live simulation required no additional authorization and estimated a maximum fee near 2.27 Testnet XLM.
+
+The browser sign-only run used the Testnet account displayed as `GBWM5…2UPB`. Its disposable status and permission to spend Testnet XLM were not confirmed. The signed XDR was not submitted; the submit checkbox remained clear. There is no transaction receipt or confirmed ledger to report. A safe Testnet write remains unverified.
