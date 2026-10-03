@@ -12,7 +12,7 @@ This checkout does not have configured production API, worker, indexer, database
 
 ## Browser wallet verification
 
-The Freighter 5.48.0 popup was opened in the existing Chrome profile on 2026-10-03 and showed an unlocked account. The console stayed at “Checking wallet…” and “Network unavailable,” so connect, network detection, challenge signing, and transaction signing were not verified. The required browser automation executable is unavailable, and the full browser page and state matrix remains unverified.
+The Freighter 5.48.0 popup was opened in the existing Chrome profile on 2026-10-03 and showed an unlocked account. A Chrome DevTools Protocol reproduction found the static CSP blocked Next.js bootstrap scripts, preventing client hydration. A nonce CSP and finite wallet detection states are now implemented. Connect, challenge signing, and transaction signing still require verification in the existing profile. The required browser automation executable is unavailable, and the full browser page and state matrix remains unverified.
 
 ## Worker Engine execution
 
