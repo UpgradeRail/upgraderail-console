@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -50,6 +51,13 @@ func TestApplyControllerBatchIsIdempotentAndAdvancesCheckpoint(t *testing.T) {
 	}
 	if eventCount != 3 || cursor != "cursor-2" {
 		t.Fatalf("unexpected journal count %d cursor %q", eventCount, cursor)
+	}
+	reloaded, err := store.LoadControllerState(ctx, controllerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Cursor != "cursor-2" || reloaded.Proposals[2].Status != "active" || reloaded.Fleets["fleet"].WASMHash != "new" || len(reloaded.Upgrades) != 1 {
+		t.Fatalf("restart did not replay journal and checkpoint: %#v", reloaded)
 	}
 }
 
@@ -104,5 +112,5 @@ func seedController(t *testing.T, ctx context.Context, store *Store, prefix stri
 }
 
 func event(network, kind, data string, index uint32) projection.Event {
-	return projection.Event{Network: network, Controller: "controller", TransactionHash: "tx", Index: index, Type: kind, Data: json.RawMessage(data)}
+	return projection.Event{Network: network, Controller: "controller", TransactionHash: "tx", RPCEventID: fmt.Sprintf("event-%010d", index), Index: index, Type: kind, Data: json.RawMessage(data)}
 }
