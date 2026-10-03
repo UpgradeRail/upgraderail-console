@@ -10,7 +10,7 @@ Before deployment, configure an absolute `ARTIFACT_LOCAL_DIR`, `UPGRADERAIL_ENGI
 
 - Web: build with `pnpm --filter @upgraderail/web build`; set `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_STELLAR_NETWORK`, `NEXT_PUBLIC_STELLAR_RPC_URL`, and `NEXT_PUBLIC_CONTROLLER_ID` before building. The standalone server needs `.next/static` copied into `.next/standalone/apps/web/.next/static` after the build; otherwise HTML loads without CSS or JavaScript. Run `PORT=3000 HOSTNAME=0.0.0.0 node apps/web/.next/standalone/apps/web/server.js` from the repository root.
 - API: run `services/api/cmd/api`; set `DATABASE_URL`, `AUTH_DOMAIN`, and `WEB_ORIGIN`. `WEB_ORIGIN` is the exact browser origin including scheme and port, for example `https://console.example.com`. `AUTH_DOMAIN` must equal its hostname. API startup fails when either value is missing or mismatched. Use HTTPS and keep web and API on the same site so the `SameSite=Lax` session cookie can be sent.
-- Indexer: run `services/indexer/cmd/indexer`; set `DATABASE_URL`, `STELLAR_RPC_URL`, network passphrase, controller ID, and a safe start ledger or cursor.
+- Indexer: compile and run `services/indexer/cmd/indexer` as a supervised, long-running process. Set `DATABASE_URL`, `STELLAR_NETWORK`, `STELLAR_NETWORK_PASSPHRASE`, `STELLAR_RPC_URL`, `UPGRADERAIL_CONTROLLER_ID`, and `UPGRADERAIL_START_LEDGER`. The start ledger must be a safe ledger from the checked deployment record and is used only before a checkpoint exists. `INDEXER_POLL_INTERVAL` defaults to 5 seconds. The process verifies the RPC network, replays its ordered journal, fetches from the saved RPC cursor, and commits events and checkpoint in one database transaction. It exits nonzero on configuration, RPC, or batch errors so a supervisor can restart it.
 - Worker: run `services/worker/cmd/worker`; set `DATABASE_URL`, `ARTIFACT_LOCAL_DIR`, `UPGRADERAIL_WORK_DIR`, `UPGRADERAIL_ENGINE_BIN`, and a timeout appropriate for Engine analysis jobs.
 
 ## Data Plane
@@ -18,6 +18,7 @@ Before deployment, configure an absolute `ARTIFACT_LOCAL_DIR`, `UPGRADERAIL_ENGI
 - PostgreSQL must be migrated before API, indexer, or worker processes start.
 - Run fresh bootstrap verification before first deployment with `DATABASE_URL=<empty database> make verify-fresh-migrations`.
 - The initial migration creates schema only. Insert a `networks` row for each configured network before auth challenges, sessions, or analysis jobs can be created. For Testnet, use `INSERT INTO networks (id, passphrase, rpc_url, protocol_target) VALUES ('testnet', 'Test SDF Network ; September 2015', 'https://soroban-testnet.stellar.org', 28);` after migration. A missing row makes challenge creation fail with `challenge_unavailable`.
+- Insert a `controllers` row for each controller before starting the indexer, using the network and contract ID checked against the deployment record. The indexer fails clearly if the configured controller is absent. Migration `000002_indexer_event_order.sql` stores RPC event IDs for deterministic restart replay. A pre-migration journal with missing RPC event IDs cannot be resumed safely; rebuild it from a verified safe start ledger in a fresh database, then switch service traffic after comparison.
 - Artifact storage must be durable and shared between the API path that records artifact keys and the worker path that reads them.
 - `ARTIFACT_LOCAL_DIR` is acceptable only when the API and worker share a persistent filesystem. Otherwise, add and verify an object-store implementation before deployment.
 
@@ -34,12 +35,12 @@ Before deployment, configure an absolute `ARTIFACT_LOCAL_DIR`, `UPGRADERAIL_ENGI
 - API readiness check: `GET /health/ready`; this must fail when PostgreSQL is unavailable.
 - Web health check: `GET /api/health` for the Next.js runtime.
 - Worker readiness requires database connectivity, artifact storage access, and `UPGRADERAIL_ENGINE_BIN version`.
-- Indexer readiness is currently unavailable: the indexer executable only logs a message and exits. The live RPC test verifies read-only `getEvents`, but does not verify process startup, database checkpoint resume, or continuous indexing.
+- Indexer readiness: the supervised process must remain alive after logging `indexer ready`. Check its last successful batch and `SELECT cursor, ledger_sequence, updated_at FROM indexer_checkpoints WHERE controller_id = '<controller row ID>';`. The RPC cursor can advance on an empty page while `ledger_sequence` remains the last event ledger. Stop and restart the process to confirm `resuming=true` and a stable event count. A separate HTTP readiness endpoint is not implemented.
 
 ## Process Model
 
 - Run at least one API process and one web process per environment.
-- Run indexer as a single writer per controller checkpoint unless advisory locking or partitioned controller ownership is added.
+- Run indexer as a single writer per controller checkpoint. Multiple writers for the same controller are not supported without advisory locking or partitioned ownership. On batch failure, the process exits and the checkpoint stays at the previous committed cursor.
 - Run workers horizontally only after confirming `FOR UPDATE SKIP LOCKED` job claiming against the production database.
 - Workers need a writable temporary directory for per-job Engine configuration and manifests.
 
@@ -53,4 +54,4 @@ Before deployment, configure an absolute `ARTIFACT_LOCAL_DIR`, `UPGRADERAIL_ENGI
 
 ## Current Status
 
-No public production or staging web, API, indexer, worker, database, artifact store, or URLs have been provisioned from this repository. The local production-like pass is recorded in `docs/deployment-verification.md`. It does not establish deployment readiness.
+No public production or staging web, API, indexer, worker, database, artifact store, or URLs have been provisioned from this repository. The local production-like pass is recorded in `docs/deployment-verification.md`. The indexer currently journals events and maintains a checkpoint; it does not yet populate the API's fleet and proposal read-model tables. This local pass does not establish public deployment readiness.
