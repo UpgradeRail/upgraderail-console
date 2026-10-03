@@ -1,4 +1,4 @@
-import { getNetwork, isConnected, requestAccess, signMessage, signTransaction } from "@stellar/freighter-api";
+import { getAddress, getNetwork, isConnected, requestAccess, signMessage, signTransaction } from "@stellar/freighter-api";
 
 const walletCallTimeoutMs = 5_000;
 const connectionTimeoutMs = 60_000;
@@ -81,6 +81,19 @@ export async function signWalletTransaction(transactionXdr: string, networkPassp
   if (!result.signedTxXdr) throw new Error("Freighter did not return a signed transaction.");
   if (result.signerAddress !== address) throw new Error("Freighter signed with a different account.");
   return result.signedTxXdr;
+}
+
+export async function requireWalletAccount(address: string, networkPassphrase: string): Promise<void> {
+  const network = await withTimeout(getNetwork(), walletCallTimeoutMs, "Freighter did not return its selected network.");
+  if (network.error) throw new Error(network.error.message || "Freighter could not report its network.");
+  if (network.networkPassphrase !== networkPassphrase) {
+    throw new Error("Wrong network: select Testnet in Freighter before continuing.");
+  }
+  const account = await withTimeout(getAddress(), walletCallTimeoutMs, "Freighter did not return its selected account.");
+  if (account.error) throw new Error(account.error.message || "Freighter could not report its account.");
+  if (account.address !== address) {
+    throw new Error("The selected Freighter account differs from the authenticated session. Connect again.");
+  }
 }
 
 export async function signWalletMessage(message: string, networkPassphrase: string, address: string): Promise<string> {
