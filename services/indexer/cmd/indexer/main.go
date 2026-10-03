@@ -105,7 +105,11 @@ func run(ctx context.Context) error {
 			if ctx.Err() != nil {
 				return nil
 			}
-			return err
+			var temporary *indexerrpc.TemporaryError
+			if !errors.As(err, &temporary) {
+				return err
+			}
+			slog.Warn("stellar rpc temporarily unavailable; retrying", "service", "indexer", "error", redact(err.Error()))
 		}
 		timer := time.NewTimer(c.pollInterval)
 		select {

@@ -26,6 +26,13 @@ type Batch struct {
 	Cursor string
 }
 
+// TemporaryError marks an RPC transport or availability failure that can be retried
+// without changing the checkpoint. Invalid responses remain fatal.
+type TemporaryError struct{ Err error }
+
+func (e *TemporaryError) Error() string { return e.Err.Error() }
+func (e *TemporaryError) Unwrap() error { return e.Err }
+
 func (c Client) CheckNetwork(ctx context.Context, expectedPassphrase string) error {
 	if c.Endpoint == "" || expectedPassphrase == "" {
 		return errors.New("stellar rpc endpoint and network passphrase are required")
@@ -122,11 +129,15 @@ func (c Client) fetchControllerEvents(ctx context.Context, controller string, st
 	request.Header.Set("content-type", "application/json")
 	response, err := client.Do(request)
 	if err != nil {
-		return Batch{}, fmt.Errorf("stellar rpc getEvents: %w", err)
+		return Batch{}, &TemporaryError{Err: fmt.Errorf("stellar rpc getEvents: %w", err)}
 	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode > 299 {
-		return Batch{}, fmt.Errorf("stellar rpc getEvents returned HTTP %d", response.StatusCode)
+		err := fmt.Errorf("stellar rpc getEvents returned HTTP %d", response.StatusCode)
+		if response.StatusCode == http.StatusTooManyRequests || response.StatusCode >= 500 {
+			return Batch{}, &TemporaryError{Err: err}
+		}
+		return Batch{}, err
 	}
 
 	var decoded rpcResponse

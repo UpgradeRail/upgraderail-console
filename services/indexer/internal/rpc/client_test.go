@@ -3,6 +3,7 @@ package rpc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -71,6 +72,32 @@ func TestFetchControllerEventsAfterUsesCheckpointCursor(t *testing.T) {
 	}
 	if page.Cursor != "saved-cursor" || batch.Cursor != "next-cursor" {
 		t.Fatalf("unexpected cursors: %#v %#v", page, batch)
+	}
+}
+
+func TestFetchControllerEventsClassifiesTemporaryFailures(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	client := Client{Endpoint: server.URL, Network: "testnet"}
+	_, err := client.FetchControllerEvents(context.Background(), "controller", 1, 10)
+	var temporary *TemporaryError
+	if !errors.As(err, &temporary) {
+		t.Fatalf("HTTP 503 should be retryable: %v", err)
+	}
+	server.Close()
+	_, err = client.FetchControllerEvents(context.Background(), "controller", 1, 10)
+	if !errors.As(err, &temporary) {
+		t.Fatalf("transport failure should be retryable: %v", err)
+	}
+
+	bad := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer bad.Close()
+	_, err = (Client{Endpoint: bad.URL, Network: "testnet"}).FetchControllerEvents(context.Background(), "controller", 1, 10)
+	if err == nil || errors.As(err, &temporary) {
+		t.Fatalf("HTTP 400 must remain fatal: %v", err)
 	}
 }
 
