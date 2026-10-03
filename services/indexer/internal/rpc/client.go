@@ -26,6 +26,45 @@ type Batch struct {
 	Cursor string
 }
 
+func (c Client) CheckNetwork(ctx context.Context, expectedPassphrase string) error {
+	if c.Endpoint == "" || expectedPassphrase == "" {
+		return errors.New("stellar rpc endpoint and network passphrase are required")
+	}
+	client := c.HTTPClient
+	if client == nil {
+		client = &http.Client{Timeout: 20 * time.Second}
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.Endpoint, strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"getNetwork"}`))
+	if err != nil {
+		return err
+	}
+	request.Header.Set("content-type", "application/json")
+	response, err := client.Do(request)
+	if err != nil {
+		return fmt.Errorf("stellar rpc getNetwork: %w", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("stellar rpc getNetwork returned HTTP %d", response.StatusCode)
+	}
+	var decoded struct {
+		Result struct {
+			Passphrase string `json:"passphrase"`
+		} `json:"result"`
+		Error *rpcError `json:"error"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&decoded); err != nil {
+		return fmt.Errorf("decode stellar network: %w", err)
+	}
+	if decoded.Error != nil {
+		return fmt.Errorf("stellar rpc getNetwork error %d: %s", decoded.Error.Code, decoded.Error.Message)
+	}
+	if decoded.Result.Passphrase != expectedPassphrase {
+		return errors.New("stellar rpc network passphrase differs from configured network")
+	}
+	return nil
+}
+
 func (c Client) FetchControllerEvents(ctx context.Context, controller string, startLedger uint32, limit uint32) (Batch, error) {
 	if startLedger == 0 {
 		return Batch{}, errors.New("start ledger is required")

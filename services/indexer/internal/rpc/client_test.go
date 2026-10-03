@@ -74,6 +74,20 @@ func TestFetchControllerEventsAfterUsesCheckpointCursor(t *testing.T) {
 	}
 }
 
+func TestCheckNetworkRejectsWrongPassphrase(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{"passphrase":"Test SDF Network ; September 2015"}}`))
+	}))
+	defer server.Close()
+	client := Client{Endpoint: server.URL}
+	if err := client.CheckNetwork(context.Background(), "Public Global Stellar Network ; September 2015"); err == nil {
+		t.Fatal("wrong network was accepted")
+	}
+	if err := client.CheckNetwork(context.Background(), "Test SDF Network ; September 2015"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestNormalizeRejectsUnknownControllerEvent(t *testing.T) {
 	_, err := normalize("testnet", rawEvent{
 		ContractID: "controller",
