@@ -25,6 +25,17 @@ func TestChallengeHasRandomNonceAndCanonicalMessage(t *testing.T) {
 	}
 }
 
+func TestChallengeMessageIsStableAfterTimezoneConversion(t *testing.T) {
+	issuedAt := time.Date(2026, 10, 3, 6, 15, 21, 0, time.UTC)
+	challenge := Challenge{Domain: "127.0.0.1", Network: "testnet", Address: "GTEST", Nonce: "nonce", IssuedAt: issuedAt, ExpiresAt: issuedAt.Add(5 * time.Minute), Purpose: "console_session"}
+	stored := challenge
+	stored.IssuedAt = stored.IssuedAt.In(time.FixedZone("WAT", 60*60))
+	stored.ExpiresAt = stored.ExpiresAt.In(time.FixedZone("WAT", 60*60))
+	if challenge.Message() != stored.Message() {
+		t.Fatal("challenge message changed when PostgreSQL returned timestamps in local time")
+	}
+}
+
 func TestVerifyChecksStellarPublicKeySignature(t *testing.T) {
 	public, private, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {

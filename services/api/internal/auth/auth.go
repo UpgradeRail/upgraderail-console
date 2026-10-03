@@ -45,7 +45,7 @@ func NewChallenge(id, domain, network, address, purpose string, now time.Time) (
 }
 
 func (c Challenge) Message() string {
-	return strings.Join([]string{"UpgradeRail authentication", "domain: " + c.Domain, "network: " + c.Network, "address: " + c.Address, "nonce: " + c.Nonce, "issued_at: " + c.IssuedAt.Format(time.RFC3339), "expires_at: " + c.ExpiresAt.Format(time.RFC3339), "purpose: " + c.Purpose}, "\n")
+	return strings.Join([]string{"UpgradeRail authentication", "domain: " + c.Domain, "network: " + c.Network, "address: " + c.Address, "nonce: " + c.Nonce, "issued_at: " + c.IssuedAt.UTC().Format(time.RFC3339), "expires_at: " + c.ExpiresAt.UTC().Format(time.RFC3339), "purpose: " + c.Purpose}, "\n")
 }
 func (c Challenge) NonceHash() string { return hash(c.Nonce) }
 func Hash(value string) string        { return hash(value) }
