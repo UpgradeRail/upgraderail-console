@@ -23,6 +23,7 @@ const (
 
 type Event struct {
 	Network, Controller, TransactionHash string
+	RPCEventID                           string
 	Ledger                               uint32
 	Index                                uint32
 	Type                                 string

@@ -37,11 +37,40 @@ func TestFetchControllerEventsRequestsJSONXDRAndNormalizesEvents(t *testing.T) {
 		t.Fatalf("unexpected batch %#v", batch)
 	}
 	event := batch.Events[0]
-	if event.Type != projection.FleetCreated || event.Network != "testnet" || event.Controller != "controller" || event.Index != 0 {
+	if event.Type != projection.FleetCreated || event.Network != "testnet" || event.Controller != "controller" || event.Index != 0 || event.RPCEventID == "" {
 		t.Fatalf("unexpected event %#v", event)
 	}
 	if string(event.Data) != `{"fleet_id":"fleet","ledger":4969465,"tag":"shared","wasm_hash":"wasm"}` {
 		t.Fatalf("unexpected data %s", event.Data)
+	}
+}
+
+func TestFetchControllerEventsAfterUsesCheckpointCursor(t *testing.T) {
+	var request map[string]json.RawMessage
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatal(err)
+		}
+		_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{"cursor":"next-cursor","events":[]}}`))
+	}))
+	defer server.Close()
+	batch, err := Client{Endpoint: server.URL, Network: "testnet"}.FetchControllerEventsAfter(context.Background(), "controller", "saved-cursor", 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var params map[string]json.RawMessage
+	if err := json.Unmarshal(request["params"], &params); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := params["startLedger"]; ok {
+		t.Fatal("startLedger must be omitted when resuming from a cursor")
+	}
+	var page pagination
+	if err := json.Unmarshal(params["pagination"], &page); err != nil {
+		t.Fatal(err)
+	}
+	if page.Cursor != "saved-cursor" || batch.Cursor != "next-cursor" {
+		t.Fatalf("unexpected cursors: %#v %#v", page, batch)
 	}
 }
 

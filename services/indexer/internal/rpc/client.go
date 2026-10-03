@@ -27,6 +27,20 @@ type Batch struct {
 }
 
 func (c Client) FetchControllerEvents(ctx context.Context, controller string, startLedger uint32, limit uint32) (Batch, error) {
+	if startLedger == 0 {
+		return Batch{}, errors.New("start ledger is required")
+	}
+	return c.fetchControllerEvents(ctx, controller, startLedger, "", limit)
+}
+
+func (c Client) FetchControllerEventsAfter(ctx context.Context, controller, cursor string, limit uint32) (Batch, error) {
+	if cursor == "" {
+		return Batch{}, errors.New("checkpoint cursor is required")
+	}
+	return c.fetchControllerEvents(ctx, controller, 0, cursor, limit)
+}
+
+func (c Client) fetchControllerEvents(ctx context.Context, controller string, startLedger uint32, cursor string, limit uint32) (Batch, error) {
 	if c.Endpoint == "" {
 		return Batch{}, errors.New("stellar rpc endpoint is required")
 	}
@@ -50,7 +64,7 @@ func (c Client) FetchControllerEvents(ctx context.Context, controller string, st
 		Method:  "getEvents",
 		Params: getEventsParams{
 			StartLedger: startLedger,
-			Pagination:  pagination{Limit: limit},
+			Pagination:  pagination{Limit: limit, Cursor: cursor},
 			Filters: []eventFilter{{
 				Type:        "contract",
 				ContractIDs: []string{controller},
@@ -83,6 +97,9 @@ func (c Client) FetchControllerEvents(ctx context.Context, controller string, st
 	if decoded.Error != nil {
 		return Batch{}, fmt.Errorf("stellar rpc getEvents error %d: %s", decoded.Error.Code, decoded.Error.Message)
 	}
+	if decoded.Result.Cursor == "" {
+		return Batch{}, errors.New("stellar rpc getEvents returned no cursor")
+	}
 	events := make([]projection.Event, 0, len(decoded.Result.Events))
 	for _, event := range decoded.Result.Events {
 		normalized, err := normalize(c.Network, event)
@@ -105,14 +122,15 @@ type rpcRequest struct {
 }
 
 type getEventsParams struct {
-	StartLedger uint32        `json:"startLedger"`
+	StartLedger uint32        `json:"startLedger,omitempty"`
 	Pagination  pagination    `json:"pagination"`
 	Filters     []eventFilter `json:"filters"`
 	XDRFormat   string        `json:"xdrFormat"`
 }
 
 type pagination struct {
-	Limit uint32 `json:"limit"`
+	Limit  uint32 `json:"limit"`
+	Cursor string `json:"cursor,omitempty"`
 }
 
 type eventFilter struct {
@@ -165,6 +183,7 @@ func normalize(network string, event rawEvent) (projection.Event, error) {
 	return projection.Event{
 		Network:         network,
 		Controller:      event.ContractID,
+		RPCEventID:      event.ID,
 		TransactionHash: event.TxHash,
 		Ledger:          event.Ledger,
 		Index:           index,
