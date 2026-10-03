@@ -35,6 +35,7 @@ done
 expected_indexes=(
   analysis_jobs_status_created_idx
   controller_events_controller_ledger_idx
+  controller_events_rpc_event_id_idx
   sessions_address_network_idx
 )
 
