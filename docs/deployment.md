@@ -4,12 +4,12 @@ The Next.js app can use its standalone build output. API, indexer, and worker ar
 
 Required server variables are in `.env.example`. `NEXT_PUBLIC_*` values are browser-visible and must never contain database URLs, session secrets, or private RPC credentials.
 
-Before deployment, configure an absolute `ARTIFACT_LOCAL_DIR`, `UPGRADERAIL_ENGINE_BIN`, PostgreSQL, Stellar RPC, controller ID, `SESSION_SECRET`, `AUTH_DOMAIN`, and `WEB_ORIGIN`. No production URLs or infrastructure have been configured in this checkout. The current artifact implementation is filesystem only; an S3-compatible store has not been implemented.
+Before deployment, configure an absolute `ARTIFACT_LOCAL_DIR`, `UPGRADERAIL_ENGINE_BIN`, PostgreSQL, Stellar RPC, controller ID, `AUTH_DOMAIN`, and `WEB_ORIGIN`. No production URLs or infrastructure have been configured in this checkout. The current artifact implementation is filesystem only; an S3-compatible store has not been implemented. `SESSION_SECRET` is present in the example configuration but the current database-backed session implementation does not read it.
 
 ## Services
 
 - Web: build with `pnpm --filter @upgraderail/web build`; set `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_STELLAR_NETWORK`, `NEXT_PUBLIC_STELLAR_RPC_URL`, and `NEXT_PUBLIC_CONTROLLER_ID` before building. The standalone server needs `.next/static` copied into `.next/standalone/apps/web/.next/static` after the build; otherwise HTML loads without CSS or JavaScript. Run `PORT=3000 HOSTNAME=0.0.0.0 node apps/web/.next/standalone/apps/web/server.js` from the repository root.
-- API: run `services/api/cmd/api`; set `DATABASE_URL`, `SESSION_SECRET`, `AUTH_DOMAIN`, and `WEB_ORIGIN`. `WEB_ORIGIN` is the exact browser origin including scheme and port, for example `https://console.example.com`. API startup fails when it is missing or malformed. Use HTTPS for deployed browser and API origins.
+- API: run `services/api/cmd/api`; set `DATABASE_URL`, `AUTH_DOMAIN`, and `WEB_ORIGIN`. `WEB_ORIGIN` is the exact browser origin including scheme and port, for example `https://console.example.com`. `AUTH_DOMAIN` must equal its hostname. API startup fails when either value is missing or mismatched. Use HTTPS and keep web and API on the same site so the `SameSite=Lax` session cookie can be sent.
 - Indexer: run `services/indexer/cmd/indexer`; set `DATABASE_URL`, `STELLAR_RPC_URL`, network passphrase, controller ID, and a safe start ledger or cursor.
 - Worker: run `services/worker/cmd/worker`; set `DATABASE_URL`, `ARTIFACT_LOCAL_DIR`, `UPGRADERAIL_WORK_DIR`, `UPGRADERAIL_ENGINE_BIN`, and a timeout appropriate for Engine analysis jobs.
 
@@ -23,7 +23,7 @@ Before deployment, configure an absolute `ARTIFACT_LOCAL_DIR`, `UPGRADERAIL_ENGI
 
 ## Secrets
 
-- `DATABASE_URL`, `SESSION_SECRET`, private RPC headers, and object-store credentials are server-only secrets.
+- `DATABASE_URL`, private RPC headers, and future object-store credentials are server-only secrets. Treat `SESSION_SECRET` as server-only if configured, even though this version does not use it.
 - `NEXT_PUBLIC_*` values are embedded in browser output and must contain only public network metadata and public endpoints.
 - Browser CSP `connect-src` permits only the configured API and Stellar RPC origins in production. API credentialed CORS and logout require the exact `WEB_ORIGIN`.
 - Do not log signed transaction XDR, session tokens, database URLs, RPC credentials, or artifact contents.
