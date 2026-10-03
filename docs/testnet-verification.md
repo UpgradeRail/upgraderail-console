@@ -34,4 +34,4 @@ UPGRADERAIL_START_LEDGER=4969430 \
 go test ./services/indexer/internal/store -run TestLiveReadOnlyTestnetControllerProjection -count=1 -v
 ```
 
-No wallet, write transaction, Testnet current/candidate fleet-pair simulation, or browser extension verification was performed.
+No wallet connection, write transaction, or Testnet current/candidate fleet-pair simulation was performed. The Freighter popup was opened in Chrome on 2026-10-03, but the console stayed at “Checking wallet…” and “Network unavailable”; no wallet connection or signing was verified.

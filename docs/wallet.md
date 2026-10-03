@@ -4,7 +4,11 @@ The web app calls only documented Freighter APIs: `isConnected`, `getAddress`, `
 
 Private keys never leave Freighter. The Console uses the wallet address for display and sends an unsigned XDR transaction to Freighter only after a live controller read, simulation, and user confirmation are implemented. The browser code has signing helpers but no governance action currently exposes a signable transaction.
 
-The server challenge uses a short-lived random nonce and verifies the Ed25519 signature against the Stellar public address. Browser-extension verification is not yet performed in this environment.
+The server challenge uses a short-lived random nonce and verifies the Ed25519 signature against the Stellar public address.
+
+## Manual browser observation
+
+On 2026-10-03, the Freighter 5.48.0 extension popup was opened in the existing Chrome profile while `http://127.0.0.1:3000/app` was active. The popup displayed an unlocked account. The console remained at “Checking wallet…” and “Network unavailable”; it did not open a connect, challenge-signing, or transaction-signing request. This verifies extension presence and popup access only. Network selection, connection, challenge/session flow, and transaction signing remain unverified.
 
 The wallet wrapper has unit coverage for:
 
@@ -18,7 +22,7 @@ The wallet wrapper has unit coverage for:
 - confirmed transaction state
 - failed transaction state
 
-Manual Freighter browser-extension verification still requires a browser profile with Freighter installed:
+Full manual Freighter browser-extension verification still requires the console wallet flow to become available, then:
 
 1. Connect Freighter on Testnet.
 2. Sign the server challenge and confirm the authenticated session cookie is set.

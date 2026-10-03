@@ -12,7 +12,7 @@ This checkout does not have configured production API, worker, indexer, database
 
 ## Browser wallet verification
 
-Freighter browser-extension verification has not run in this environment. The required browser automation executable is also unavailable, so visual browser verification remains unverified despite a successful local HTTP response and production build.
+The Freighter 5.48.0 popup was opened in the existing Chrome profile on 2026-10-03 and showed an unlocked account. The console stayed at “Checking wallet…” and “Network unavailable,” so connect, network detection, challenge signing, and transaction signing were not verified. The required browser automation executable is unavailable, and the full browser page and state matrix remains unverified.
 
 ## Worker Engine execution
 
