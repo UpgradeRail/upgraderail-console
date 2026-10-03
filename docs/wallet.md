@@ -4,7 +4,7 @@ The web app calls only documented Freighter APIs: `isConnected`, `getAddress`, `
 
 Private keys never leave Freighter. The Console uses the wallet address for display and sends an unsigned XDR transaction to Freighter only after a live controller read, simulation, and user confirmation are implemented. The browser code has signing helpers but no governance action currently exposes a signable transaction.
 
-The server challenge uses a short-lived random nonce and verifies the Ed25519 signature against the Stellar public address.
+The server challenge uses a short-lived random nonce and verifies the Ed25519 signature against the Stellar public address using SEP-53: SHA-256 of `Stellar Signed Message:\n` followed by the challenge text. This matches Freighter's `signMessage` behavior and rejects signatures over the raw challenge text.
 
 ## Manual browser observation
 

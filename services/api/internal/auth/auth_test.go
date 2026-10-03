@@ -3,6 +3,7 @@ package auth
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base32"
 	"encoding/base64"
 	"strings"
@@ -31,12 +32,26 @@ func TestVerifyChecksStellarPublicKeySignature(t *testing.T) {
 	}
 	address := stellarAddress(public)
 	message := "challenge"
-	signature := base64.StdEncoding.EncodeToString(ed25519.Sign(private, []byte(message)))
+	messageHash := sha256.Sum256([]byte(sep53MessagePrefix + message))
+	signature := base64.StdEncoding.EncodeToString(ed25519.Sign(private, messageHash[:]))
 	if err := Verify(address, message, signature); err != nil {
 		t.Fatal(err)
 	}
+	legacySignature := base64.StdEncoding.EncodeToString(ed25519.Sign(private, []byte(message)))
+	if err := Verify(address, message, legacySignature); err == nil {
+		t.Fatal("expected raw-message signature to fail SEP-53 verification")
+	}
 	if err := Verify(address, message+"x", signature); err == nil {
 		t.Fatal("expected invalid signature")
+	}
+}
+
+func TestVerifySEP53SpecificationVector(t *testing.T) {
+	const address = "GBXFXNDLV4LSWA4VB7YIL5GBD7BVNR22SGBTDKMO2SBZZHDXSKZYCP7L"
+	const message = "Hello, World!"
+	const signature = "fO5dbYhXUhBMhe6kId/cuVq/AfEnHRHEvsP8vXh03M1uLpi5e46yO2Q8rEBzu3feXQewcQE5GArp88u6ePK6BA=="
+	if err := Verify(address, message, signature); err != nil {
+		t.Fatalf("SEP-53 specification signature rejected: %v", err)
 	}
 }
 

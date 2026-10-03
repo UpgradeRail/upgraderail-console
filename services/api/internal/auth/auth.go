@@ -15,6 +15,7 @@ import (
 )
 
 const defaultTTL = 5 * time.Minute
+const sep53MessagePrefix = "Stellar Signed Message:\n"
 
 type Challenge struct {
 	ID, Domain, Network, Address, Nonce, Purpose string
@@ -58,7 +59,8 @@ func Verify(address, message, signature string) error {
 	if err != nil {
 		return err
 	}
-	if !ed25519.Verify(publicKey, []byte(message), bytes) {
+	messageHash := sha256.Sum256([]byte(sep53MessagePrefix + message))
+	if !ed25519.Verify(publicKey, messageHash[:], bytes) {
 		return errors.New("signature verification failed")
 	}
 	return nil
