@@ -28,4 +28,6 @@ The wallet wrapper has unit coverage for:
 - confirmed transaction state
 - failed transaction state
 
-Remaining browser verification: submit only with an approved disposable Testnet account, then observe pending and terminal status through RPC. The failed and pending paths have focused automated tests but no live browser receipt yet.
+On 2026-10-03 the browser then exercised the submit path with the same Testnet account. The first submission was rejected before inclusion with `txBadSeq`; the console displayed that RPC diagnostic and public RPC returned `NOT_FOUND` for the rejected hash. Investigation found that the two read-only simulations had advanced the shared in-memory `Account` sequence via Stellar SDK `TransactionBuilder.build()`. Read simulations now use copies of the account, with a regression test for the sequence values.
+
+After that fix, the browser rebuilt, signed, submitted, and polled a fresh maintenance transaction. The console displayed **Confirmed on Stellar Testnet** in ledger **4,999,846**. Public Stellar RPC returned `SUCCESS` for hash `f7bda7274e21e1cebe6ca939218ce92bc47961fcdccd46c9082f5d96c1c371e0`. The decoded envelope contained one `maintain_controller` invocation of `CCMC4WGOCRU34RYO4YK64QVDNOMJBS27SBHH42ARQ7NOCQPZMRZMSLR3`. The browser account was confirmed as disposable through the submit control. This verifies the real browser build, Freighter sign, Testnet submit, polling, and confirmed display path. A live on-chain failed transaction display remains untested; the pre-inclusion RPC rejection display was observed.

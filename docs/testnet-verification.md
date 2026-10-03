@@ -40,4 +40,15 @@ The same Chrome profile subsequently connected to Freighter on Testnet, complete
 
 The selected verification call is `maintain_controller`, which extends the deployed controller's instance storage lifetime without changing governance policy, proposals, fleets, approvals, or controller version. The console pins the Testnet controller ID and live WASM hash from `upgraderail-contracts/deployments/testnet.json`, verifies the RPC network passphrase, reads live epoch/version/account state, simulates the call, and rejects stale state before signing and submission. The checked-in generated binding predates this deployed method, so this single verified method is invoked through the Stellar SDK `Contract.call` API after checking the live contract hash and interface. The live simulation required no additional authorization and estimated a maximum fee near 2.27 Testnet XLM.
 
-The browser sign-only run used the Testnet account displayed as `GBWM5…2UPB`. Its disposable status and permission to spend Testnet XLM were not confirmed. The signed XDR was not submitted; the submit checkbox remained clear. There is no transaction receipt or confirmed ledger to report. A safe Testnet write remains unverified.
+The initial browser sign-only run used the Testnet account displayed as `GBWM5…2UPB`; it stopped before submission. A subsequent browser run used the disposable-account confirmation control and submitted a fresh transaction. The first attempt was rejected before inclusion with `txBadSeq` because read-only simulation had mutated the in-memory source account sequence. The sequence handling was fixed and covered by a regression test.
+
+The retry was **confirmed on Stellar Testnet**:
+
+- network: Stellar Testnet (`Test SDF Network ; September 2015`)
+- controller: `CCMC4WGOCRU34RYO4YK64QVDNOMJBS27SBHH42ARQ7NOCQPZMRZMSLR3`
+- operation: `maintain_controller`
+- transaction hash: `f7bda7274e21e1cebe6ca939218ce92bc47961fcdccd46c9082f5d96c1c371e0`
+- ledger: `4999846`
+- RPC result: `SUCCESS`
+
+The console displayed the confirmed state. Public `getTransaction` returned the same hash, ledger, and status. The decoded envelope contained one invocation of the named operation on the recorded controller. No Mainnet transaction was made. This is verification of one maintenance write, not of governance proposal or fleet write flows.
