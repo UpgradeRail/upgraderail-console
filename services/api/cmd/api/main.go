@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -26,9 +27,20 @@ func main() {
 		os.Exit(1)
 	}
 	defer store.Close()
+	origin := os.Getenv("WEB_ORIGIN")
+	parsedOrigin, err := url.Parse(origin)
+	if err != nil || (parsedOrigin.Scheme != "https" && parsedOrigin.Scheme != "http") || parsedOrigin.Host == "" || parsedOrigin.Path != "" || parsedOrigin.RawQuery != "" || parsedOrigin.Fragment != "" {
+		logger.Error("WEB_ORIGIN must be an absolute web origin", "service", "api")
+		os.Exit(1)
+	}
+	domain := os.Getenv("AUTH_DOMAIN")
+	if domain == "" || domain != parsedOrigin.Hostname() {
+		logger.Error("AUTH_DOMAIN must match WEB_ORIGIN hostname", "service", "api")
+		os.Exit(1)
+	}
 	server := &http.Server{
 		Addr:              address(),
-		Handler:           httpapi.New(store, authDomain()),
+		Handler:           httpapi.New(store, domain, origin),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -55,11 +67,4 @@ func address() string {
 		return value
 	}
 	return ":8080"
-}
-
-func authDomain() string {
-	if value := os.Getenv("AUTH_DOMAIN"); value != "" {
-		return value
-	}
-	return "localhost"
 }

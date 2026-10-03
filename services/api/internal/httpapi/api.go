@@ -39,9 +39,9 @@ type Repository interface {
 	GetManifest(context.Context, string) (store.Manifest, error)
 }
 
-func New(repository Repository, domain string) http.Handler {
+func New(repository Repository, domain, origin string) http.Handler {
 	mux := http.NewServeMux()
-	auth.Register(mux, repository, domain)
+	auth.Register(mux, repository, domain, origin)
 	mux.HandleFunc("GET /api/v1/health", func(w http.ResponseWriter, _ *http.Request) {
 		write(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
@@ -145,7 +145,7 @@ func New(repository Repository, domain string) http.Handler {
 		value, err := repository.GetManifest(r.Context(), r.PathValue("id"))
 		respond(w, value, err)
 	})
-	return withCORS(mux, domain)
+	return withCORS(mux, origin)
 }
 
 func requireSession(w http.ResponseWriter, request *http.Request, repository Repository) (store.Session, bool) {

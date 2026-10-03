@@ -2,11 +2,10 @@ package httpapi
 
 import (
 	"net/http"
-	"net/url"
 	"strings"
 )
 
-func withCORS(next http.Handler, domain string) http.Handler {
+func withCORS(next http.Handler, allowed string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		origin := request.Header.Get("Origin")
 		if origin == "" {
@@ -14,7 +13,7 @@ func withCORS(next http.Handler, domain string) http.Handler {
 			return
 		}
 
-		if !allowedOrigin(origin, domain) {
+		if origin != allowed {
 			if request.Method == http.MethodOptions {
 				http.Error(w, "origin is not allowed", http.StatusForbidden)
 				return
@@ -35,14 +34,6 @@ func withCORS(next http.Handler, domain string) http.Handler {
 		}
 		next.ServeHTTP(w, request)
 	})
-}
-
-func allowedOrigin(origin, domain string) bool {
-	parsed, err := url.Parse(origin)
-	if err != nil || !strings.EqualFold(parsed.Hostname(), domain) || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
-		return false
-	}
-	return parsed.Scheme == "http" || parsed.Scheme == "https"
 }
 
 func appendVary(header http.Header, value string) {

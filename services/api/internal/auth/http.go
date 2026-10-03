@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"net/url"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -22,7 +21,7 @@ type Repository interface {
 	GetSession(context.Context, string) (Session, error)
 }
 
-func Register(mux *http.ServeMux, repository Repository, domain string) {
+func Register(mux *http.ServeMux, repository Repository, domain, origin string) {
 	mux.HandleFunc("POST /api/v1/auth/challenge", func(w http.ResponseWriter, request *http.Request) {
 		var input struct{ Network, Address, Purpose string }
 		if !decodeJSON(w, request, &input) {
@@ -95,7 +94,7 @@ func Register(mux *http.ServeMux, repository Repository, domain string) {
 		writeJSON(w, http.StatusOK, session)
 	})
 	mux.HandleFunc("POST /api/v1/auth/logout", func(w http.ResponseWriter, request *http.Request) {
-		if !matchesDomain(request.Header.Get("Origin"), domain) {
+		if request.Header.Get("Origin") != origin {
 			writeError(w, http.StatusForbidden, "origin_required", "Request origin is not allowed.")
 			return
 		}
@@ -106,11 +105,6 @@ func Register(mux *http.ServeMux, repository Repository, domain string) {
 		http.SetCookie(w, &http.Cookie{Name: "upgraderail_session", Value: "", Path: "/", HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode, MaxAge: -1})
 		writeJSON(w, http.StatusNoContent, nil)
 	})
-}
-
-func matchesDomain(origin, domain string) bool {
-	parsed, err := url.Parse(origin)
-	return err == nil && parsed.Hostname() == domain
 }
 
 func randomID() string {

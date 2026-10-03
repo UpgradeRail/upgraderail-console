@@ -10,15 +10,6 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func TestMatchesDomainRejectsCrossSiteOrigin(t *testing.T) {
-	if !matchesDomain("https://console.example", "console.example") {
-		t.Fatal("expected matching origin")
-	}
-	if matchesDomain("https://attacker.example", "console.example") {
-		t.Fatal("expected cross-site origin to fail")
-	}
-}
-
 type sessionRepository struct {
 	session Session
 }
@@ -43,7 +34,7 @@ func (repository sessionRepository) GetSession(_ context.Context, tokenHash stri
 
 func TestSessionEndpointRequiresAndReturnsAuthenticatedCookie(t *testing.T) {
 	mux := http.NewServeMux()
-	Register(mux, sessionRepository{session: Session{Address: "GTEST", Network: "testnet"}}, "localhost")
+	Register(mux, sessionRepository{session: Session{Address: "GTEST", Network: "testnet"}}, "localhost", "http://localhost:3000")
 
 	unauthenticated := httptest.NewRecorder()
 	mux.ServeHTTP(unauthenticated, httptest.NewRequest(http.MethodGet, "/api/v1/auth/session", nil))

@@ -3,11 +3,14 @@ import { NextRequest, NextResponse } from "next/server";
 export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const development = process.env.NODE_ENV === "development";
+  const connectionOrigins = [process.env.NEXT_PUBLIC_API_BASE_URL, process.env.NEXT_PUBLIC_STELLAR_RPC_URL]
+    .filter((value): value is string => Boolean(value))
+    .map((value) => new URL(value).origin);
   const policy = [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${development ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'",
-    "connect-src 'self' https:" + (development ? " http: ws:" : " wss:"),
+    `connect-src 'self' ${connectionOrigins.join(" ")}${development ? " http: ws:" : ""}`,
     "img-src 'self' data: blob:",
     "font-src 'self' data:",
     "object-src 'none'",

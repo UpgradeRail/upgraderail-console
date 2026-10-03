@@ -9,7 +9,7 @@ import (
 func TestCORSAllowsCredentialedConsolePreflight(t *testing.T) {
 	handler := withCORS(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-	}), "localhost")
+	}), "http://localhost:3000")
 	request := httptest.NewRequest(http.MethodOptions, "/api/v1/auth/challenge", nil)
 	request.Header.Set("Origin", "http://localhost:3000")
 	request.Header.Set("Access-Control-Request-Method", "POST")
@@ -32,7 +32,7 @@ func TestCORSAllowsCredentialedConsolePreflight(t *testing.T) {
 func TestCORSRejectsForeignPreflight(t *testing.T) {
 	handler := withCORS(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-	}), "localhost")
+	}), "http://localhost:3000")
 	request := httptest.NewRequest(http.MethodOptions, "/api/v1/auth/challenge", nil)
 	request.Header.Set("Origin", "https://attacker.example")
 	response := httptest.NewRecorder()
@@ -44,5 +44,20 @@ func TestCORSRejectsForeignPreflight(t *testing.T) {
 	}
 	if response.Header().Get("Access-Control-Allow-Origin") != "" {
 		t.Fatal("foreign origin received CORS permission")
+	}
+}
+
+func TestCORSRejectsDifferentSchemeOrPort(t *testing.T) {
+	handler := withCORS(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}), "https://console.example")
+	for _, origin := range []string{"http://console.example", "https://console.example:8443"} {
+		request := httptest.NewRequest(http.MethodOptions, "/api/v1/auth/challenge", nil)
+		request.Header.Set("Origin", origin)
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusForbidden {
+			t.Fatalf("expected %q to be rejected, got %d", origin, response.Code)
+		}
 	}
 }
