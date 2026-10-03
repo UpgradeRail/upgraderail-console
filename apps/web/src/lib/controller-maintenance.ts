@@ -1,4 +1,4 @@
-import { BASE_FEE, Contract, TransactionBuilder, rpc, scValToNative } from "@stellar/stellar-sdk";
+import { Account, BASE_FEE, Contract, TransactionBuilder, rpc, scValToNative } from "@stellar/stellar-sdk";
 
 export const TESTNET_PASSPHRASE = "Test SDF Network ; September 2015";
 
@@ -60,7 +60,10 @@ function toHex(bytes: Uint8Array): string {
 }
 
 async function simulateRead(server: rpc.Server, source: Awaited<ReturnType<rpc.Server["getAccount"]>>, method: "get_governance_epoch" | "get_controller_version", contractId: string): Promise<bigint> {
-  const tx = new TransactionBuilder(source, { fee: BASE_FEE, networkPassphrase: TESTNET_PASSPHRASE })
+  // TransactionBuilder.build mutates its Account source sequence. Read-only
+  // simulations must not consume the source used by the write transaction.
+  const simulationSource = new Account(source.accountId(), source.sequenceNumber());
+  const tx = new TransactionBuilder(simulationSource, { fee: BASE_FEE, networkPassphrase: TESTNET_PASSPHRASE })
     .addOperation(new Contract(contractId).call(method))
     .setTimeout(60)
     .build();

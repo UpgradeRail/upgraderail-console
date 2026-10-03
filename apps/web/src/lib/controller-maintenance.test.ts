@@ -61,5 +61,6 @@ describe("Testnet controller maintenance preflight", () => {
     await expect(buildMaintenanceTransaction(address, fakeServer(simulate)))
       .rejects.toThrow("Controller maintenance simulation failed: host function failed");
     expect(simulate).toHaveBeenCalledTimes(3);
+    expect(simulate.mock.calls.map(([transaction]) => transaction.sequence)).toEqual(["11", "11", "11"]);
   });
 });
