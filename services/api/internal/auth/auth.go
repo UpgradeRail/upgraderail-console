@@ -27,6 +27,11 @@ type StoredChallenge struct {
 	UsedAt                                           *time.Time
 }
 
+type Session struct {
+	Address string `json:"address"`
+	Network string `json:"network"`
+}
+
 func NewChallenge(id, domain, network, address, purpose string, now time.Time) (Challenge, error) {
 	if id == "" || domain == "" || network == "" || address == "" || purpose == "" {
 		return Challenge{}, errors.New("challenge fields are required")

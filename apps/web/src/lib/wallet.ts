@@ -5,7 +5,7 @@ const connectionTimeoutMs = 60_000;
 const testnetPassphrase = "Test SDF Network ; September 2015";
 const publicNetworkPassphrase = "Public Global Stellar Network ; September 2015";
 
-export type WalletNetwork = { name: string; passphrase: string };
+export type WalletNetwork = { id: string; name: string; passphrase: string };
 
 export type WalletState =
   | { kind: "checking" }
@@ -40,7 +40,7 @@ export async function readWallet(expectedNetworkPassphrase?: string): Promise<Wa
       return networkStateForError(result.error?.message || "Freighter returned no network passphrase.");
     }
 
-    const network = { name: result.network, passphrase: result.networkPassphrase };
+    const network = walletNetwork(result.network, result.networkPassphrase);
     if (expectedNetworkPassphrase && network.passphrase !== expectedNetworkPassphrase) {
       return { kind: "wrong_network", expected: expectedNetworkPassphrase, actual: network.name || network.passphrase };
     }
@@ -61,7 +61,7 @@ export async function connectWallet(expectedNetworkPassphrase?: string): Promise
       return { kind: "network_unavailable", message: result.error?.message || "Freighter returned no network passphrase.", address: access.address };
     }
 
-    const network = { name: result.network, passphrase: result.networkPassphrase };
+    const network = walletNetwork(result.network, result.networkPassphrase);
     if (expectedNetworkPassphrase && network.passphrase !== expectedNetworkPassphrase) {
       return { kind: "wrong_network", expected: expectedNetworkPassphrase, actual: network.name || network.passphrase };
     }
@@ -104,6 +104,12 @@ export function expectedNetworkPassphrase(): string | undefined {
     case "public": return publicNetworkPassphrase;
     default: return undefined;
   }
+}
+
+function walletNetwork(name: string, passphrase: string): WalletNetwork {
+  const configured = process.env.NEXT_PUBLIC_STELLAR_NETWORK?.trim().toLowerCase();
+  const id = configured || (passphrase === testnetPassphrase ? "testnet" : passphrase === publicNetworkPassphrase ? "mainnet" : name.toLowerCase());
+  return { id, name, passphrase };
 }
 
 export function transactionLifecycle(status: string, hash?: string, message?: string): TransactionLifecycle {

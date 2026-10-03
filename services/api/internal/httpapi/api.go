@@ -145,7 +145,7 @@ func New(repository Repository, domain string) http.Handler {
 		value, err := repository.GetManifest(r.Context(), r.PathValue("id"))
 		respond(w, value, err)
 	})
-	return mux
+	return withCORS(mux, domain)
 }
 
 func requireSession(w http.ResponseWriter, request *http.Request, repository Repository) (store.Session, bool) {

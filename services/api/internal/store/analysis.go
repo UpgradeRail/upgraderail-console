@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/UpgradeRail/upgraderail-console/services/api/internal/auth"
 )
 
-type Session struct{ Address, Network string }
+type Session = auth.Session
 type AnalysisInput struct{ ID, Network, CurrentArtifactID, CandidateArtifactID, CreatedBy string }
 type AnalysisJob struct {
 	ID, Network, Status, EngineVersion, ErrorMessage string
@@ -27,11 +29,11 @@ type Manifest struct {
 	CreatedAt time.Time
 }
 
-func (s *Store) GetSession(ctx context.Context, tokenHash string) (Session, error) {
+func (s *Store) GetSession(ctx context.Context, tokenHash string) (auth.Session, error) {
 	var value Session
 	err := s.pool.QueryRow(ctx, `SELECT public_address, network_id FROM sessions WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > now()`, tokenHash).Scan(&value.Address, &value.Network)
 	if err != nil {
-		return Session{}, fmt.Errorf("get session: %w", err)
+		return auth.Session{}, fmt.Errorf("get session: %w", err)
 	}
 	return value, nil
 }

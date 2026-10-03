@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { connectWallet, expectedNetworkPassphrase, readWallet, type WalletState } from "@/lib/wallet";
+import { connectWallet, expectedNetworkPassphrase, readWallet, stateForWalletError, type WalletState } from "@/lib/wallet";
+import { authenticateWallet } from "@/lib/wallet-session";
 
 export function WalletButton() {
   const [state, setState] = useState<WalletState>({ kind: "checking" });
@@ -21,7 +22,19 @@ export function WalletButton() {
 
   async function handleConnect() {
     setState({ kind: "connecting" });
-    setState(await connectWallet(expectedNetworkPassphrase()));
+    const connection = await connectWallet(expectedNetworkPassphrase());
+    if (connection.kind !== "connected") {
+      setState(connection);
+      return;
+    }
+
+    setState({ kind: "signing", address: connection.address, network: connection.network });
+    try {
+      await authenticateWallet(connection.address, connection.network);
+      setState(connection);
+    } catch (error) {
+      setState(stateForWalletError(error instanceof Error ? error.message : "Wallet sign-in failed."));
+    }
   }
 
   return (

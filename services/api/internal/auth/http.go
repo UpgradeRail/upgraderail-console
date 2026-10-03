@@ -19,6 +19,7 @@ type Repository interface {
 	ConsumeChallenge(context.Context, string, string, time.Time) (bool, error)
 	CreateSession(context.Context, string, string, string, string, time.Time) error
 	RevokeSession(context.Context, string, time.Time) error
+	GetSession(context.Context, string) (Session, error)
 }
 
 func Register(mux *http.ServeMux, repository Repository, domain string) {
@@ -75,6 +76,23 @@ func Register(mux *http.ServeMux, repository Repository, domain string) {
 		}
 		http.SetCookie(w, &http.Cookie{Name: "upgraderail_session", Value: token, Path: "/", HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode, Expires: expires})
 		writeJSON(w, http.StatusOK, map[string]any{"address": stored.Address, "network": stored.Network, "expires_at": expires})
+	})
+	mux.HandleFunc("GET /api/v1/auth/session", func(w http.ResponseWriter, request *http.Request) {
+		cookie, err := request.Cookie("upgraderail_session")
+		if err != nil || cookie.Value == "" {
+			writeError(w, http.StatusUnauthorized, "session_required", "Sign in with a wallet before requesting the session.")
+			return
+		}
+		session, err := repository.GetSession(request.Context(), Hash(cookie.Value))
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeError(w, http.StatusUnauthorized, "session_expired", "Your session is no longer active.")
+			return
+		}
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "session_unavailable", "Session could not be verified.")
+			return
+		}
+		writeJSON(w, http.StatusOK, session)
 	})
 	mux.HandleFunc("POST /api/v1/auth/logout", func(w http.ResponseWriter, request *http.Request) {
 		if !matchesDomain(request.Header.Get("Origin"), domain) {
