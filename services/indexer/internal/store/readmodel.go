@@ -156,10 +156,12 @@ func applyReadModel(ctx context.Context, tx pgx.Tx, controllerID string, event p
 
 	case projection.FleetCreated:
 		var value struct {
-			FleetID  string `json:"fleet_id"`
-			Tag      string `json:"tag"`
-			WASMHash string `json:"wasm_hash"`
-			Ledger   uint32 `json:"ledger"`
+			FleetID      string `json:"fleet_id"`
+			Tag          string `json:"tag"`
+			WASMHash     string `json:"wasm_hash"`
+			Ledger       uint32 `json:"ledger"`
+			ProposalID   uint64 `json:"proposal_id"`
+			ManifestHash string `json:"manifest_hash"`
 		}
 		if err := json.Unmarshal(event.Data, &value); err != nil {
 			return err
@@ -171,6 +173,18 @@ func applyReadModel(ctx context.Context, tx pgx.Tx, controllerID string, event p
 		`, fleetRowID(controllerID, value.FleetID), controllerID, value.FleetID, value.Tag, value.WASMHash, int64(value.Ledger), event.TransactionHash, int32(event.Index))
 		if err != nil {
 			return fmt.Errorf("insert fleet: %w", err)
+		}
+		if value.ProposalID != 0 {
+			_, err = tx.Exec(ctx, `
+				UPDATE proposals
+				SET kind = COALESCE(kind, 'CreateFleet'),
+				    manifest_hash = COALESCE(manifest_hash, NULLIF($3, '')),
+				    updated_at = now()
+				WHERE controller_id = $1 AND proposal_id = $2
+			`, controllerID, int64(value.ProposalID), value.ManifestHash)
+			if err != nil {
+				return fmt.Errorf("update proposal for fleet creation: %w", err)
+			}
 		}
 		return nil
 
@@ -204,10 +218,23 @@ func applyReadModel(ctx context.Context, tx pgx.Tx, controllerID string, event p
 		if err != nil {
 			return fmt.Errorf("insert fleet upgrade: %w", err)
 		}
+		if value.ProposalID != 0 {
+			_, err = tx.Exec(ctx, `
+				UPDATE proposals
+				SET kind = COALESCE(kind, 'UpgradeFleet'),
+				    manifest_hash = COALESCE(manifest_hash, NULLIF($3, '')),
+				    updated_at = now()
+				WHERE controller_id = $1 AND proposal_id = $2
+			`, controllerID, int64(value.ProposalID), value.ManifestHash)
+			if err != nil {
+				return fmt.Errorf("update proposal for fleet upgrade: %w", err)
+			}
+		}
 		return nil
 
 	case projection.PolicyUpdated:
 		var value struct {
+			ProposalID      uint64 `json:"proposal_id"`
 			GovernanceEpoch uint64 `json:"governance_epoch"`
 		}
 		if err := json.Unmarshal(event.Data, &value); err != nil {
@@ -219,12 +246,25 @@ func applyReadModel(ctx context.Context, tx pgx.Tx, controllerID string, event p
 		if err != nil {
 			return fmt.Errorf("update controller policy: %w", err)
 		}
+		if value.ProposalID != 0 {
+			_, err = tx.Exec(ctx, `
+				UPDATE proposals
+				SET kind = COALESCE(kind, 'UpdatePolicy'),
+				    updated_at = now()
+				WHERE controller_id = $1 AND proposal_id = $2
+			`, controllerID, int64(value.ProposalID))
+			if err != nil {
+				return fmt.Errorf("update proposal for policy update: %w", err)
+			}
+		}
 		return nil
 
 	case projection.ControllerUpgraded:
 		var value struct {
+			ProposalID           uint64 `json:"proposal_id"`
 			NewControllerVersion uint32 `json:"new_controller_version"`
 			NewWASMHash          string `json:"new_wasm_hash"`
+			ManifestHash         string `json:"manifest_hash"`
 		}
 		if err := json.Unmarshal(event.Data, &value); err != nil {
 			return err
@@ -234,6 +274,18 @@ func applyReadModel(ctx context.Context, tx pgx.Tx, controllerID string, event p
 		`, value.NewWASMHash, int32(value.NewControllerVersion), int64(event.Ledger), controllerID)
 		if err != nil {
 			return fmt.Errorf("update controller upgrade: %w", err)
+		}
+		if value.ProposalID != 0 {
+			_, err = tx.Exec(ctx, `
+				UPDATE proposals
+				SET kind = COALESCE(kind, 'UpgradeController'),
+				    manifest_hash = COALESCE(manifest_hash, NULLIF($3, '')),
+				    updated_at = now()
+				WHERE controller_id = $1 AND proposal_id = $2
+			`, controllerID, int64(value.ProposalID), value.ManifestHash)
+			if err != nil {
+				return fmt.Errorf("update proposal for controller upgrade: %w", err)
+			}
 		}
 		return nil
 
@@ -270,4 +322,25 @@ func fleetRowID(controllerID, fleetHash string) string {
 
 func approvalRowID(proposalRowID, approver string) string {
 	return proposalRowID + ":" + approver
+}
+
+// ReconcileProposal updates an indexed proposal's kind and manifest_hash from a
+// verified read-only contract call (such as UpgradeController.get_proposal) or
+// authenticated manifest storage linkage.
+// It is idempotent and performs no chain mutation.
+func (s *Store) ReconcileProposal(ctx context.Context, controllerID string, proposalID uint64, kind *string, manifestHash *string) error {
+	tag, err := s.pool.Exec(ctx, `
+		UPDATE proposals
+		SET kind = COALESCE($3, kind),
+		    manifest_hash = COALESCE($4, manifest_hash),
+		    updated_at = now()
+		WHERE controller_id = $1 AND proposal_id = $2
+	`, controllerID, int64(proposalID), kind, manifestHash)
+	if err != nil {
+		return fmt.Errorf("reconcile proposal: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("proposal %d not found for reconciliation", proposalID)
+	}
+	return nil
 }
