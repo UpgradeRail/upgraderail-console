@@ -288,3 +288,101 @@ export async function buildCreateProposal(
     builtAt: Date.now(),
   };
 }
+
+/**
+ * Builds an unsigned approve governance transaction.
+ * Simulates on RPC, verifies live controller state, and returns assembled unsigned XDR.
+ */
+export async function buildApprove(
+  approverAddress: string,
+  proposalId: bigint | number | string,
+  server = defaultRpc()
+): Promise<UnsignedGovernanceTx> {
+  const { account, contractId, networkPassphrase, snapshot } =
+    await readLiveGovernanceState(server, approverAddress);
+
+  const scVals = controllerSpec.funcArgsToScVals("approve", {
+    proposal_id: BigInt(proposalId),
+    approver: approverAddress,
+  });
+
+  const unsigned = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase,
+  })
+    .addOperation(new Contract(contractId).call("approve", ...scVals))
+    .setTimeout(300)
+    .build();
+
+  const simulation = await server.simulateTransaction(unsigned);
+  if (!rpc.Api.isSimulationSuccess(simulation) || !simulation.result) {
+    throw new Error(
+      `Approve simulation failed: ${
+        "error" in simulation ? simulation.error : "no result returned"
+      }`
+    );
+  }
+
+  const prepared = rpc.assembleTransaction(unsigned, simulation).build();
+  return {
+    action: "approve",
+    address: approverAddress,
+    contractId,
+    networkPassphrase,
+    rpcUrl: server.serverURL.toString(),
+    unsignedXdr: prepared.toXDR(),
+    transactionHash: toHex(prepared.hash()),
+    feeStroops: prepared.fee,
+    snapshot,
+    builtAt: Date.now(),
+  };
+}
+
+/**
+ * Builds an unsigned revoke_approval governance transaction.
+ * Simulates on RPC, verifies live controller state, and returns assembled unsigned XDR.
+ */
+export async function buildRevokeApproval(
+  approverAddress: string,
+  proposalId: bigint | number | string,
+  server = defaultRpc()
+): Promise<UnsignedGovernanceTx> {
+  const { account, contractId, networkPassphrase, snapshot } =
+    await readLiveGovernanceState(server, approverAddress);
+
+  const scVals = controllerSpec.funcArgsToScVals("revoke_approval", {
+    proposal_id: BigInt(proposalId),
+    approver: approverAddress,
+  });
+
+  const unsigned = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase,
+  })
+    .addOperation(new Contract(contractId).call("revoke_approval", ...scVals))
+    .setTimeout(300)
+    .build();
+
+  const simulation = await server.simulateTransaction(unsigned);
+  if (!rpc.Api.isSimulationSuccess(simulation) || !simulation.result) {
+    throw new Error(
+      `Revoke approval simulation failed: ${
+        "error" in simulation ? simulation.error : "no result returned"
+      }`
+    );
+  }
+
+  const prepared = rpc.assembleTransaction(unsigned, simulation).build();
+  return {
+    action: "revoke_approval",
+    address: approverAddress,
+    contractId,
+    networkPassphrase,
+    rpcUrl: server.serverURL.toString(),
+    unsignedXdr: prepared.toXDR(),
+    transactionHash: toHex(prepared.hash()),
+    feeStroops: prepared.fee,
+    snapshot,
+    builtAt: Date.now(),
+  };
+}
