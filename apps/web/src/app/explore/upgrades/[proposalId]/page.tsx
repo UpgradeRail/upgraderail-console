@@ -38,12 +38,14 @@ type State =
   | { kind: "ready"; proposal: Proposal; approvals: Approval[] };
 
 export default function ExploreProposalPage({
+  proposalId: directProposalId,
   params,
 }: {
+  proposalId?: string;
   params?: Promise<{ proposalId: string }>;
 } = {}) {
-  const unwrappedParams = params ? use(params) : { proposalId: "" };
-  const proposalId = unwrappedParams.proposalId;
+  const unwrappedParams = params ? use(params) : undefined;
+  const proposalId = directProposalId ?? unwrappedParams?.proposalId ?? "";
 
   const [state, setState] = useState<State>({ kind: "loading" });
 

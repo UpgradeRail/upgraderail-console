@@ -32,12 +32,14 @@ type State =
   | { kind: "ready"; fleet: Fleet; upgrades: FleetUpgrade[] };
 
 export default function FleetDetailPage({
+  fleetId: directFleetId,
   params,
 }: {
+  fleetId?: string;
   params?: Promise<{ fleetId: string }>;
 } = {}) {
-  const unwrappedParams = params ? use(params) : { fleetId: "" };
-  const fleetId = unwrappedParams.fleetId;
+  const unwrappedParams = params ? use(params) : undefined;
+  const fleetId = directFleetId ?? unwrappedParams?.fleetId ?? "";
 
   const [state, setState] = useState<State>({ kind: "loading" });
 
