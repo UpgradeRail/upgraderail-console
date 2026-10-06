@@ -8,35 +8,63 @@ import (
 )
 
 type Controller struct {
-	ID, NetworkID, ContractID string
-	WASMHash                  *string
-	GovernanceEpoch           *int64
-	ControllerVersion         *int32
+	ID                string  `json:"id"`
+	NetworkID         string  `json:"network_id"`
+	ContractID        string  `json:"contract_id"`
+	WASMHash          *string `json:"wasm_hash"`
+	GovernanceEpoch   *int64  `json:"governance_epoch"`
+	ControllerVersion *int32  `json:"controller_version"`
 }
 
 type Fleet struct {
-	ID, ControllerID, FleetHash, Tag, CreatedTransactionHash string
-	CurrentWASMHash                                          *string
-	CreatedLedger                                            int64
+	ID                     string  `json:"id"`
+	ControllerID           string  `json:"controller_id"`
+	FleetHash              string  `json:"fleet_hash"`
+	Tag                    string  `json:"tag"`
+	CurrentWASMHash        *string `json:"current_wasm_hash"`
+	CreatedLedger          int64   `json:"created_ledger"`
+	CreatedTransactionHash string  `json:"created_transaction_hash"`
 }
 
+// Kind and ManifestHash are nullable: the proposal_created event does not
+// carry the ProposalKind variant or its manifest hash, so until the indexer
+// adds read-only contract reconciliation these stay null rather than being
+// fabricated (see docs/limitations.md).
 type Proposal struct {
-	ID, ControllerID, Proposer, Kind, Status, CreatedTransactionHash string
-	ProposalID, GovernanceEpoch, CreatedLedger, ExpiresLedger        int64
-	ApprovalCount                                                    int32
-	ApprovedLedger, ExecuteAfterLedger                               *int64
-	ManifestHash                                                     *string
+	ID                     string  `json:"id"`
+	ControllerID           string  `json:"controller_id"`
+	ProposalID             int64   `json:"proposal_id"`
+	Proposer               string  `json:"proposer"`
+	Kind                   *string `json:"kind"`
+	GovernanceEpoch        int64   `json:"governance_epoch"`
+	CreatedLedger          int64   `json:"created_ledger"`
+	ExpiresLedger          int64   `json:"expires_ledger"`
+	ApprovalCount          int32   `json:"approval_count"`
+	ApprovedLedger         *int64  `json:"approved_ledger"`
+	ExecuteAfterLedger     *int64  `json:"execute_after_ledger"`
+	Status                 string  `json:"status"`
+	ManifestHash           *string `json:"manifest_hash"`
+	CreatedTransactionHash string  `json:"created_transaction_hash"`
 }
 
 type Approval struct {
-	ID, ProposalID, Approver, TransactionHash string
-	ApprovedLedger                            int64
-	RevokedLedger                             *int64
+	ID              string `json:"id"`
+	ProposalID      string `json:"proposal_id"`
+	Approver        string `json:"approver"`
+	ApprovedLedger  int64  `json:"approved_ledger"`
+	TransactionHash string `json:"transaction_hash"`
+	RevokedLedger   *int64 `json:"revoked_ledger"`
 }
 
 type FleetUpgrade struct {
-	ID, FleetID, ProposalID, OldWASMHash, NewWASMHash, ManifestHash, TransactionHash string
-	LedgerSequence                                                                   int64
+	ID              string `json:"id"`
+	FleetID         string `json:"fleet_id"`
+	ProposalID      string `json:"proposal_id"`
+	OldWASMHash     string `json:"old_wasm_hash"`
+	NewWASMHash     string `json:"new_wasm_hash"`
+	ManifestHash    string `json:"manifest_hash"`
+	LedgerSequence  int64  `json:"ledger_sequence"`
+	TransactionHash string `json:"transaction_hash"`
 }
 
 func (s *Store) ListControllers(ctx context.Context, page Page) ([]Controller, error) {
