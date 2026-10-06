@@ -121,6 +121,9 @@ func (s *Store) ApplyControllerBatch(ctx context.Context, state projection.State
 		if err != nil {
 			return state, fmt.Errorf("insert controller event: %w", err)
 		}
+		if err := applyReadModel(ctx, tx, controllerID, event); err != nil {
+			return state, fmt.Errorf("project %s: %w", event.Type, err)
+		}
 	}
 	ledger := int64(0)
 	if len(events) > 0 {

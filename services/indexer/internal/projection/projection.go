@@ -39,6 +39,8 @@ type Fleet struct {
 type Proposal struct {
 	ID                                 uint64
 	Proposer, Status                   string
+	GovernanceEpoch                    uint64
+	ExpiresLedger                      uint32
 	ApprovalCount                      uint32
 	ApprovedLedger, ExecuteAfterLedger *uint32
 }
@@ -48,12 +50,21 @@ type Upgrade struct {
 	OldWASMHash, NewWASMHash, ManifestHash string
 }
 
+// Controller tracks controller-wide state that is only observable from
+// controller_upgraded and policy_updated events, not from proposal/fleet events.
+type Controller struct {
+	WASMHash        string
+	Version         uint32
+	GovernanceEpoch uint64
+}
+
 type State struct {
-	Cursor    string
-	Seen      map[string]struct{}
-	Fleets    map[string]Fleet
-	Proposals map[uint64]Proposal
-	Upgrades  []Upgrade
+	Cursor     string
+	Seen       map[string]struct{}
+	Fleets     map[string]Fleet
+	Proposals  map[uint64]Proposal
+	Upgrades   []Upgrade
+	Controller Controller
 }
 
 func NewState() State {
@@ -80,16 +91,25 @@ func apply(state *State, event Event) error {
 	switch event.Type {
 	case ProposalCreated:
 		var value struct {
-			ProposalID uint64 `json:"proposal_id"`
-			Proposer   string `json:"proposer"`
+			ProposalID      uint64 `json:"proposal_id"`
+			Proposer        string `json:"proposer"`
+			GovernanceEpoch uint64 `json:"governance_epoch"`
+			ExpiresLedger   uint32 `json:"expires_ledger"`
 		}
 		if err := decode(event.Data, &value); err != nil {
 			return err
 		}
-		state.Proposals[value.ProposalID] = Proposal{ID: value.ProposalID, Proposer: value.Proposer, Status: "active"}
+		state.Proposals[value.ProposalID] = Proposal{
+			ID:              value.ProposalID,
+			Proposer:        value.Proposer,
+			Status:          "active",
+			GovernanceEpoch: value.GovernanceEpoch,
+			ExpiresLedger:   value.ExpiresLedger,
+		}
 	case ProposalApproved, ApprovalRevoked:
 		var value struct {
 			ProposalID    uint64 `json:"proposal_id"`
+			Approver      string `json:"approver"`
 			ApprovalCount uint32 `json:"approval_count"`
 		}
 		if err := decode(event.Data, &value); err != nil {
@@ -177,7 +197,25 @@ func apply(state *State, event Event) error {
 		fleet.WASMHash = value.NewWASMHash
 		state.Fleets[value.FleetID] = fleet
 		state.Upgrades = append(state.Upgrades, Upgrade{FleetID: value.FleetID, ProposalID: value.ProposalID, OldWASMHash: value.OldWASMHash, NewWASMHash: value.NewWASMHash, ManifestHash: value.ManifestHash})
-	case PolicyUpdated, ControllerUpgraded:
+	case PolicyUpdated:
+		var value struct {
+			GovernanceEpoch uint64 `json:"governance_epoch"`
+		}
+		if err := decode(event.Data, &value); err != nil {
+			return err
+		}
+		state.Controller.GovernanceEpoch = value.GovernanceEpoch
+		return nil
+	case ControllerUpgraded:
+		var value struct {
+			NewControllerVersion uint32 `json:"new_controller_version"`
+			NewWASMHash          string `json:"new_wasm_hash"`
+		}
+		if err := decode(event.Data, &value); err != nil {
+			return err
+		}
+		state.Controller.Version = value.NewControllerVersion
+		state.Controller.WASMHash = value.NewWASMHash
 		return nil
 	default:
 		return fmt.Errorf("unsupported UpgradeController event %q", event.Type)
@@ -207,5 +245,6 @@ func copyState(value State) State {
 		next.Proposals[key] = proposal
 	}
 	next.Upgrades = append(next.Upgrades, value.Upgrades...)
+	next.Controller = value.Controller
 	return next
 }

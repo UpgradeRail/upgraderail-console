@@ -263,9 +263,31 @@ func eventData(eventType string, event rawEvent) (json.RawMessage, error) {
 		if err != nil {
 			return nil, err
 		}
-		return marshalData(map[string]any{"proposal_id": id, "proposer": proposer})
+		governanceEpoch, err := u64(value["governance_epoch"])
+		if err != nil {
+			return nil, err
+		}
+		expiresLedger, err := u32(value["expires_ledger"])
+		if err != nil {
+			return nil, err
+		}
+		return marshalData(map[string]any{
+			"proposal_id":      id,
+			"proposer":         proposer,
+			"governance_epoch": governanceEpoch,
+			"expires_ledger":   expiresLedger,
+		})
 	case projection.ProposalApproved, projection.ApprovalRevoked:
 		id, err := proposalID()
+		if err != nil {
+			return nil, err
+		}
+		// approver is carried as the third topic (symbol, proposal_id, approver
+		// address), not in the data map, confirmed against real Testnet events.
+		if len(event.TopicJSON) < 3 {
+			return nil, errors.New("approver topic is required")
+		}
+		approver, err := address(event.TopicJSON[2])
 		if err != nil {
 			return nil, err
 		}
@@ -273,7 +295,7 @@ func eventData(eventType string, event rawEvent) (json.RawMessage, error) {
 		if err != nil {
 			return nil, err
 		}
-		return marshalData(map[string]any{"proposal_id": id, "approval_count": count})
+		return marshalData(map[string]any{"proposal_id": id, "approver": approver, "approval_count": count})
 	case projection.ThresholdReached:
 		id, err := proposalID()
 		if err != nil {
@@ -315,7 +337,24 @@ func eventData(eventType string, event rawEvent) (json.RawMessage, error) {
 		if err != nil {
 			return nil, err
 		}
-		return marshalData(map[string]any{"fleet_id": fleetID, "tag": tag, "wasm_hash": wasmHash, "ledger": ledger})
+		// proposal_id and manifest_hash are also emitted but have no fleets
+		// table column yet; keep them in the normalized payload for audit.
+		proposalID, err := u64(value["proposal_id"])
+		if err != nil {
+			return nil, err
+		}
+		manifestHash, err := bytesValue(value["manifest_hash"])
+		if err != nil {
+			return nil, err
+		}
+		return marshalData(map[string]any{
+			"fleet_id":      fleetID,
+			"tag":           tag,
+			"wasm_hash":     wasmHash,
+			"ledger":        ledger,
+			"proposal_id":   proposalID,
+			"manifest_hash": manifestHash,
+		})
 	case projection.FleetUpgraded:
 		fleetID, err := topicBytes(event.TopicJSON)
 		if err != nil {
@@ -344,8 +383,39 @@ func eventData(eventType string, event rawEvent) (json.RawMessage, error) {
 			"new_wasm_hash": newHash,
 			"manifest_hash": manifestHash,
 		})
-	case projection.PolicyUpdated, projection.ControllerUpgraded:
-		return marshalData(map[string]any{})
+	case projection.PolicyUpdated:
+		id, err := proposalID()
+		if err != nil {
+			return nil, err
+		}
+		governanceEpoch, err := u64(value["governance_epoch"])
+		if err != nil {
+			return nil, err
+		}
+		return marshalData(map[string]any{"proposal_id": id, "governance_epoch": governanceEpoch})
+	case projection.ControllerUpgraded:
+		id, err := proposalID()
+		if err != nil {
+			return nil, err
+		}
+		newVersion, err := u32(value["new_controller_version"])
+		if err != nil {
+			return nil, err
+		}
+		newWASMHash, err := bytesValue(value["new_wasm_hash"])
+		if err != nil {
+			return nil, err
+		}
+		manifestHash, err := bytesValue(value["manifest_hash"])
+		if err != nil {
+			return nil, err
+		}
+		return marshalData(map[string]any{
+			"proposal_id":            id,
+			"new_controller_version": newVersion,
+			"new_wasm_hash":          newWASMHash,
+			"manifest_hash":          manifestHash,
+		})
 	default:
 		return nil, fmt.Errorf("unsupported UpgradeController event %q", eventType)
 	}

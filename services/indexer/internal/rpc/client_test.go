@@ -20,7 +20,7 @@ func TestFetchControllerEventsRequestsJSONXDRAndNormalizesEvents(t *testing.T) {
 			t.Fatal(err)
 		}
 		w.Header().Set("content-type", "application/json")
-		_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{"cursor":"cursor-1","events":[{"type":"contract","ledger":4969465,"contractId":"controller","id":"0021343689653669888-0000000000","txHash":"tx","topicJson":[{"symbol":"fleet_created"},{"bytes":"fleet"}],"valueJson":{"map":[{"key":{"symbol":"ledger"},"val":{"u32":4969465}},{"key":{"symbol":"tag"},"val":{"string":"shared"}},{"key":{"symbol":"wasm_hash"},"val":{"bytes":"wasm"}}]}}]}}`))
+		_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{"cursor":"cursor-1","events":[{"type":"contract","ledger":4969465,"contractId":"controller","id":"0021343689653669888-0000000000","txHash":"tx","topicJson":[{"symbol":"fleet_created"},{"bytes":"fleet"}],"valueJson":{"map":[{"key":{"symbol":"ledger"},"val":{"u32":4969465}},{"key":{"symbol":"manifest_hash"},"val":{"bytes":"manifest"}},{"key":{"symbol":"proposal_id"},"val":{"u64":"1"}},{"key":{"symbol":"tag"},"val":{"string":"shared"}},{"key":{"symbol":"wasm_hash"},"val":{"bytes":"wasm"}}]}}]}}`))
 	}))
 	defer server.Close()
 
@@ -41,7 +41,7 @@ func TestFetchControllerEventsRequestsJSONXDRAndNormalizesEvents(t *testing.T) {
 	if event.Type != projection.FleetCreated || event.Network != "testnet" || event.Controller != "controller" || event.Index != 0 || event.RPCEventID == "" {
 		t.Fatalf("unexpected event %#v", event)
 	}
-	if string(event.Data) != `{"fleet_id":"fleet","ledger":4969465,"tag":"shared","wasm_hash":"wasm"}` {
+	if string(event.Data) != `{"fleet_id":"fleet","ledger":4969465,"manifest_hash":"manifest","proposal_id":1,"tag":"shared","wasm_hash":"wasm"}` {
 		t.Fatalf("unexpected data %s", event.Data)
 	}
 }
