@@ -130,8 +130,8 @@ func TestApplyControllerBatchProjectsFleetAndProposalReadModels(t *testing.T) {
 	if status != "executed" || approvalCount != 1 || approvedLedger != nil {
 		t.Fatalf("unexpected proposal projection: status=%s count=%d approvedLedger=%v", status, approvalCount, approvedLedger)
 	}
-	if kind != nil || manifestHash != nil {
-		t.Fatalf("proposal kind/manifest_hash must stay NULL without reconciliation, got kind=%v manifest_hash=%v", kind, manifestHash)
+	if kind == nil || *kind != "UpgradeFleet" || manifestHash == nil || *manifestHash != "manifest" {
+		t.Fatalf("expected proposal kind=UpgradeFleet manifest_hash=manifest populated from fleet upgrade, got kind=%v manifest_hash=%v", kind, manifestHash)
 	}
 
 	var approverCount int
@@ -278,4 +278,49 @@ func event(network, kind, data string, index uint32) projection.Event {
 // with a previous run's rows.
 func eventWithTx(network, txHash, kind, data string, index uint32) projection.Event {
 	return projection.Event{Network: network, Controller: "controller", TransactionHash: txHash, RPCEventID: fmt.Sprintf("%s-%010d", txHash, index), Index: index, Type: kind, Data: json.RawMessage(data)}
+}
+
+func TestReconcileProposal(t *testing.T) {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("DATABASE_URL is required")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	store, err := Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	networkID, controllerID := seedController(t, ctx, store, "reconcile")
+
+	events := []projection.Event{
+		event(networkID, projection.ProposalCreated, `{"proposal_id":42,"proposer":"GPROPOSER","governance_epoch":1,"expires_ledger":5000000}`, 0),
+	}
+	if _, err := store.ApplyControllerBatch(ctx, projection.NewState(), controllerID, events, "cursor-rec-1"); err != nil {
+		t.Fatal(err)
+	}
+
+	var kind, manifestHash *string
+	if err := store.pool.QueryRow(ctx, `SELECT kind, manifest_hash FROM proposals WHERE controller_id = $1 AND proposal_id = 42`, controllerID).
+		Scan(&kind, &manifestHash); err != nil {
+		t.Fatal(err)
+	}
+	if kind != nil || manifestHash != nil {
+		t.Fatalf("expected initially null kind/manifest, got kind=%v manifest=%v", kind, manifestHash)
+	}
+
+	targetKind := "CreateFleet"
+	targetManifest := "sha256-manifest-42"
+	if err := store.ReconcileProposal(ctx, controllerID, 42, &targetKind, &targetManifest); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := store.pool.QueryRow(ctx, `SELECT kind, manifest_hash FROM proposals WHERE controller_id = $1 AND proposal_id = 42`, controllerID).
+		Scan(&kind, &manifestHash); err != nil {
+		t.Fatal(err)
+	}
+	if kind == nil || *kind != targetKind || manifestHash == nil || *manifestHash != targetManifest {
+		t.Fatalf("reconciled proposal mismatch: kind=%v manifest=%v", kind, manifestHash)
+	}
 }
