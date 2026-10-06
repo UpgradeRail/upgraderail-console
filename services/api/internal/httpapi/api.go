@@ -27,6 +27,8 @@ type Repository interface {
 	ListProposals(context.Context, store.Page) ([]store.Proposal, error)
 	GetProposal(context.Context, string) (store.Proposal, error)
 	ListApprovals(context.Context, string, store.Page) ([]store.Approval, error)
+	ListAllFleetUpgrades(context.Context, store.Page) ([]store.FleetUpgrade, error)
+	ListEvents(context.Context, store.Page) ([]store.ControllerEvent, error)
 	CreateChallenge(context.Context, auth.Challenge) error
 	GetChallenge(context.Context, string) (auth.StoredChallenge, error)
 	ConsumeChallenge(context.Context, string, string, time.Time) (bool, error)
@@ -105,6 +107,22 @@ func New(repository Repository, domain, origin string) http.Handler {
 			return
 		}
 		values, err := repository.ListApprovals(r.Context(), r.PathValue("id"), page)
+		respond(w, values, err)
+	})
+	mux.HandleFunc("GET /api/v1/upgrades", func(w http.ResponseWriter, r *http.Request) {
+		page, ok := parsePage(w, r)
+		if !ok {
+			return
+		}
+		values, err := repository.ListAllFleetUpgrades(r.Context(), page)
+		respond(w, values, err)
+	})
+	mux.HandleFunc("GET /api/v1/events", func(w http.ResponseWriter, r *http.Request) {
+		page, ok := parsePage(w, r)
+		if !ok {
+			return
+		}
+		values, err := repository.ListEvents(r.Context(), page)
 		respond(w, values, err)
 	})
 	mux.HandleFunc("POST /api/v1/analyses", func(w http.ResponseWriter, request *http.Request) {

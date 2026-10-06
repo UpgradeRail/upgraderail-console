@@ -2,7 +2,9 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -65,6 +67,19 @@ type FleetUpgrade struct {
 	ManifestHash    string `json:"manifest_hash"`
 	LedgerSequence  int64  `json:"ledger_sequence"`
 	TransactionHash string `json:"transaction_hash"`
+}
+
+type ControllerEvent struct {
+	ID              string          `json:"id"`
+	ControllerID    string          `json:"controller_id"`
+	NetworkID       string          `json:"network_id"`
+	LedgerSequence  int64           `json:"ledger_sequence"`
+	TransactionHash string          `json:"transaction_hash"`
+	EventIndex      int32           `json:"event_index"`
+	EventType       string          `json:"event_type"`
+	Topics          json.RawMessage `json:"topics"`
+	Data            json.RawMessage `json:"data"`
+	ObservedAt      time.Time       `json:"observed_at"`
 }
 
 func (s *Store) ListControllers(ctx context.Context, page Page) ([]Controller, error) {
@@ -140,4 +155,22 @@ func (s *Store) ListApprovals(ctx context.Context, proposalID string, page Page)
 	}
 	defer rows.Close()
 	return pgx.CollectRows(rows, pgx.RowToStructByPos[Approval])
+}
+
+func (s *Store) ListAllFleetUpgrades(ctx context.Context, page Page) ([]FleetUpgrade, error) {
+	rows, err := s.pool.Query(ctx, `SELECT id, fleet_id, proposal_id, old_wasm_hash, new_wasm_hash, manifest_hash, ledger_sequence, transaction_hash FROM fleet_upgrades ORDER BY ledger_sequence DESC LIMIT $1 OFFSET $2`, page.Limit, page.Offset)
+	if err != nil {
+		return nil, fmt.Errorf("list all fleet upgrades: %w", err)
+	}
+	defer rows.Close()
+	return pgx.CollectRows(rows, pgx.RowToStructByPos[FleetUpgrade])
+}
+
+func (s *Store) ListEvents(ctx context.Context, page Page) ([]ControllerEvent, error) {
+	rows, err := s.pool.Query(ctx, `SELECT id, controller_id, network_id, ledger_sequence, transaction_hash, event_index, event_type, topics, data, observed_at FROM controller_events ORDER BY ledger_sequence DESC, event_index DESC LIMIT $1 OFFSET $2`, page.Limit, page.Offset)
+	if err != nil {
+		return nil, fmt.Errorf("list controller events: %w", err)
+	}
+	defer rows.Close()
+	return pgx.CollectRows(rows, pgx.RowToStructByPos[ControllerEvent])
 }

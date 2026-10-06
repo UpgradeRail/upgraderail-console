@@ -62,6 +62,10 @@ func TestFleetProposalApprovalEndpointsServeProjectedReadModels(t *testing.T) {
 		INSERT INTO fleet_upgrades (id, fleet_id, proposal_id, old_wasm_hash, new_wasm_hash, manifest_hash, ledger_sequence, transaction_hash, event_index)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 		"tx-upgrade-"+suffix+":0", fleetID, proposalID, "wasm-old", "wasm-new", "manifest", int64(1500), "tx-upgrade-"+suffix, int32(0))
+	mustExec(t, ctx, seed, `
+		INSERT INTO controller_events (id, controller_id, network_id, ledger_sequence, transaction_hash, event_index, event_type, topics, data)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, '[]'::jsonb, '{"tag":"shared-tag"}'::jsonb)`,
+		"event-"+suffix, controllerID, networkID, int64(1000), "tx-create", int32(0), "fleet_created")
 
 	repository, err := store.Open(ctx, databaseURL)
 	if err != nil {
@@ -120,6 +124,16 @@ func TestFleetProposalApprovalEndpointsServeProjectedReadModels(t *testing.T) {
 	fleets := getJSONArray(t, client, server.URL+"/api/v1/fleets")
 	if len(fleets) == 0 {
 		t.Fatal("expected the projected fleet to be listed")
+	}
+
+	allUpgrades := getJSONArray(t, client, server.URL+"/api/v1/upgrades")
+	if len(allUpgrades) == 0 || allUpgrades[0]["new_wasm_hash"] != "wasm-new" {
+		t.Fatalf("unexpected projected all upgrades: %#v", allUpgrades)
+	}
+
+	events := getJSONArray(t, client, server.URL+"/api/v1/events")
+	if len(events) == 0 || events[0]["event_type"] != "fleet_created" {
+		t.Fatalf("unexpected projected controller events: %#v", events)
 	}
 }
 
