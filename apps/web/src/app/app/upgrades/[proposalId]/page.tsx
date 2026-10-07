@@ -239,7 +239,7 @@ export default function ProposalDetailPage({
           <div>
             <span className="eyebrow">GOVERNANCE ACTIONS</span>
             <h2 style={{ margin: "4px 0 16px", fontSize: "24px" }}>Act on this proposal</h2>
-            <ProposalActions proposalId={state.proposal.proposal_id} />
+            <ProposalActions proposalId={state.proposal.proposal_id} projectedStatus={state.proposal.status} />
           </div>
         </div>
       )}

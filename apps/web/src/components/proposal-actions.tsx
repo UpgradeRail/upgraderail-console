@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { GovernanceActionPanel } from "./governance-action-panel";
 import { api, ApiError } from "@/lib/api";
 import { buildApprove, buildCancelProposal, buildExecuteProposal, buildRevokeApproval, defaultRpc, readLiveProposal, type LiveProposal } from "@/lib/governance-tx";
+import { LifecycleCard } from "./lifecycle-card";
 import { describeLifecycle, type ActionAvailability } from "@/lib/proposal-lifecycle";
 
 type Session = { address: string; network: string };
@@ -19,7 +20,7 @@ const reasonOf = (a: ActionAvailability) => (a.allowed ? undefined : a.reason);
  * Governance actions for one proposal. Eligibility comes from the live
  * on-chain proposal state, not from the indexed projection, which may lag.
  */
-export function ProposalActions({ proposalId, onChanged }: { proposalId: number | string; onChanged?: () => void }) {
+export function ProposalActions({ proposalId, projectedStatus, onChanged }: { proposalId: number | string; projectedStatus?: string; onChanged?: () => void }) {
   const [live, setLive] = useState<Live>({ kind: "loading" });
 
   const refresh = useCallback(async () => {
@@ -55,6 +56,7 @@ export function ProposalActions({ proposalId, onChanged }: { proposalId: number 
   const id = String(proposalId);
   return (
     <div style={{ display: "grid", gap: "24px" }}>
+      <LifecycleCard lifecycle={lifecycle} live={live.live} projectedStatus={projectedStatus} />
       <GovernanceActionPanel
         title="Approve proposal"
         description="Records your approval. When the threshold is reached the policy timelock starts."
