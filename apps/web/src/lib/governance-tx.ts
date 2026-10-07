@@ -14,6 +14,18 @@ export const VERIFIED_CONTROLLER_ID =
 export const VERIFIED_CONTROLLER_WASM_HASH =
   "0ac2626c26b43f5330bf89cfdd952ecdd9940817a703ec04c327f478f5f20458";
 
+// Disposable Testnet controller used only to verify real browser-to-Testnet
+// governance write flows through Freighter, without risking the shared
+// evidence controller above. Single approver, threshold 1, deployed
+// 2026-10-07. Never a Mainnet or production target.
+const VERIFIED_CONTROLLERS: ReadonlyArray<{ id: string; wasmHash: string }> = [
+  { id: VERIFIED_CONTROLLER_ID, wasmHash: VERIFIED_CONTROLLER_WASM_HASH },
+  {
+    id: "CAJX4YE77N23K53MNJHYMCZIFXGMUEHSNZPHXAHDVZU5IYXUK4OQXTWS",
+    wasmHash: "9d095cc390c841fe9461fef878e1464361d586a85fa52d95a66e865465482aa8",
+  },
+];
+
 export const CONTROLLER_SPEC_ENTRIES = [
   "AAAAAAAAAAAAAAAHYXBwcm92ZQAAAAACAAAAAAAAAAtwcm9wb3NhbF9pZAAAAAAGAAAAAAAAAAhhcHByb3ZlcgAAABMAAAABAAAD6QAAAAIAAAfQAAAADUNvbnRyYWN0RXJyb3IAAAA=",
   "AAAAAAAAAAAAAAAJZ2V0X2ZsZWV0AAAAAAAAAQAAAAAAAAAIZmxlZXRfaWQAAAPuAAAAIAAAAAEAAAPpAAAH0AAAAAVGbGVldAAAAAAAB9AAAAANQ29udHJhY3RFcnJvcgAAAA==",
@@ -116,9 +128,9 @@ export function defaultRpc(): rpc.Server {
 export function configuredContractId(): string {
   const configured =
     process.env.NEXT_PUBLIC_CONTROLLER_ID?.trim() || VERIFIED_CONTROLLER_ID;
-  if (configured !== VERIFIED_CONTROLLER_ID) {
+  if (!VERIFIED_CONTROLLERS.some((entry) => entry.id === configured)) {
     throw new Error(
-      "The configured controller does not match the verified Testnet deployment record."
+      "The configured controller does not match a verified Testnet deployment record."
     );
   }
   return configured;
@@ -137,7 +149,9 @@ export function requireVerifiedNetwork(
       "Wrong network: governance transactions are available only on Stellar Testnet."
     );
   }
-  if (wasmHash !== VERIFIED_CONTROLLER_WASM_HASH) {
+  const contractId = configuredContractId();
+  const verified = VERIFIED_CONTROLLERS.find((entry) => entry.id === contractId);
+  if (!verified || wasmHash !== verified.wasmHash) {
     throw new Error(
       "The live controller WASM differs from the verified deployment record."
     );
