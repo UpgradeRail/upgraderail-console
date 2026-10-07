@@ -24,7 +24,7 @@ The Freighter 5.48.0 popup was opened in the existing Chrome profile on 2026-10-
 
 ## Worker Engine execution
 
-Rust `1.99.0` is installed on this host and can build the checked-out Engine workspace, which requires Rust `1.98.1` or later. A database-backed worker job invoking the real Engine binary was verified locally with committed contracts WASM fixtures.
+Rust `1.99.0` is installed on this host and can build the checked-out Engine workspace, which requires Rust `1.98.1` or later. A database-backed worker job invoking the real Engine binary was verified locally with committed contracts WASM fixtures, including end to end from a real `POST /api/v1/artifacts` upload through to a persisted report and manifest (see `docs/api.md`).
 
 The verification does not prove live Testnet current-versus-candidate simulation. The Engine report still preserves `NOT PROVEN BY STATIC ANALYSIS` and `NOT TESTED` evidence states where the Engine cannot prove storage compatibility or runtime authorization behavior.
 
@@ -36,12 +36,17 @@ Eligibility shown in the UI mirrors the controller's rules, but the contract is 
 
 ## Analysis and artifacts
 
-- The API has **no artifact upload endpoint**. `POST /api/v1/analyses` takes existing artifact ids, and nothing in this repository writes `artifacts` rows from the product. The web UI therefore lists and displays analyses; it cannot start one.
-- Artifact storage is filesystem-only (`ARTIFACT_LOCAL_DIR`), readable by the worker. S3-compatible storage was **not** implemented: no v1 requirement for it was found in this repository, and with no upload path there is nothing to store. If the API and worker do not share a persistent filesystem, an object-store backend with SHA-256 verification must be added before deployment.
+- The API now has an artifact upload endpoint (`POST /api/v1/artifacts`, see `docs/api.md`) and the web UI can upload a current/candidate WASM pair and create an analysis job from them (`/app/analyses/new`). This closes the previous gap where nothing in the product could write an `artifacts` row.
+- Artifact storage is still filesystem-only (`ARTIFACT_LOCAL_DIR`), shared by the API (which writes uploads) and the worker (which reads them to run the Engine) via `services/shared/artifactstore`. S3-compatible storage was **not** implemented: no v1 requirement for it was found in this repository. If the API and worker do not run on the same filesystem (e.g. separate hosts/containers without a shared volume), the worker cannot read what the API wrote, and a job will fail with a clear "artifact" error rather than silently hanging — but this is still not production-ready storage. An object-store backend with SHA-256 verification should be added before a real multi-host deployment.
+- The upload endpoint's WASM check is a minimal magic-byte check (`\0asm`), not full module validation; a well-formed-looking but invalid module would still be accepted at upload time and would only fail once the worker runs the Engine on it.
 - Analyses are not linked to fleets in the data model, so the fleet analysis route shows the shared analysis list rather than a per-fleet filter.
 - A proposal can only be drafted from an analysis whose Engine status is not `BLOCKED`, whose manifest is persisted, and whose current WASM hash equals the fleet's indexed hash.
 - The Engine report carries no runtime simulation scenarios unless configured; the worker does not configure them, so runtime simulation shows `NOT CONFIGURED`.
 - Upgrade history shows ledger and transaction but no block timestamp, and cannot link an upgrade to the analysis that produced its manifest hash. Both are displayed as not recorded.
+
+## Dependency audit
+
+`pnpm audit --prod` reports no known vulnerabilities in production dependencies. A full `pnpm audit` (including devDependencies) reports one high-severity advisory: `braces` (GHSA-vfj7-8cjw-p6xm, stack-exhaustion denial of service via deeply nested patterns), pulled in transitively through `eslint-config-next` → `@next/eslint-plugin-next` → `fast-glob` → `micromatch` → `braces`. No patched version exists upstream as of this check. This is a dev-only lint/tooling dependency, not reachable from any production runtime path (API, worker, indexer, or the built web app); it is not resolved, and this should not be reported as zero advisories — only as zero in the production dependency graph.
 
 ## Browser test coverage
 
