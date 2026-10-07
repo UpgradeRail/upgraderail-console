@@ -92,3 +92,11 @@ export function describeLifecycle(live: LiveProposal, address: string | null): L
     actions: { approve, revoke, cancel, execute },
   };
 }
+
+/** True when the indexed status cannot be the live state (indexer behind the chain). */
+export function projectionLags(projectedStatus: string | undefined, state: ProposalStateTag): boolean {
+  if (!projectedStatus) return false;
+  const projected = projectedStatus.toLowerCase();
+  if (state === "Executed" || state === "Cancelled") return projected !== state.toLowerCase();
+  return projected === "executed" || projected === "cancelled";
+}
