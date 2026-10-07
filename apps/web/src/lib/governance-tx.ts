@@ -465,3 +465,105 @@ export function buildExecuteProposal(
     server
   );
 }
+
+export type ProposalStateTag =
+  | "AwaitingApprovals"
+  | "Timelocked"
+  | "Ready"
+  | "Expired"
+  | "Stale"
+  | "Executed"
+  | "Cancelled";
+
+export const PROPOSAL_STATES: readonly ProposalStateTag[] = [
+  "AwaitingApprovals", "Timelocked", "Ready", "Expired", "Stale", "Executed", "Cancelled",
+];
+
+export type LiveProposal = {
+  ledger: number;
+  state: ProposalStateTag;
+  proposer: string;
+  approvalCount: number;
+  threshold: number;
+  timelockLedgers: number;
+  executeAfterLedger: number | null;
+  expiresLedger: number;
+  isApprover: boolean;
+  hasApproved: boolean;
+};
+
+/** Enum unit variants decode as {tag}, ["Tag"], or "Tag" depending on the path. */
+export function enumTag(value: unknown): string | undefined {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value) && typeof value[0] === "string") return value[0];
+  if (value && typeof value === "object" && typeof (value as { tag?: unknown }).tag === "string") {
+    return (value as { tag: string }).tag;
+  }
+  return undefined;
+}
+
+function num(value: unknown, label: string): number {
+  const n = typeof value === "bigint" ? Number(value) : value;
+  if (typeof n !== "number" || !Number.isSafeInteger(n) || n < 0) {
+    throw new Error(`Live controller returned an invalid ${label}.`);
+  }
+  return n;
+}
+
+async function simulateNative(
+  server: rpc.Server,
+  source: Account,
+  method: string,
+  args: Record<string, unknown>
+): Promise<unknown> {
+  const tx = new TransactionBuilder(new Account(source.accountId(), source.sequenceNumber()), {
+    fee: BASE_FEE,
+    networkPassphrase: TESTNET_PASSPHRASE,
+  })
+    .addOperation(new Contract(configuredContractId()).call(method, ...controllerSpec.funcArgsToScVals(method, args)))
+    .setTimeout(60)
+    .build();
+  const result = await server.simulateTransaction(tx);
+  if (!rpc.Api.isSimulationSuccess(result) || !result.result) {
+    throw new Error(`Live controller ${method} failed: ${"error" in result ? result.error : "no result returned"}`);
+  }
+  return controllerSpec.funcResToNative(method, result.result.retval);
+}
+
+/**
+ * Reads the proposal's live on-chain state (read-only simulation, nothing is
+ * signed). The result drives which governance actions the UI offers.
+ */
+export async function readLiveProposal(
+  server: rpc.Server,
+  address: string,
+  proposalId: bigint | number | string
+): Promise<LiveProposal> {
+  const { account, snapshot } = await readLiveGovernanceState(server, address);
+  const id = BigInt(proposalId);
+  const [stateValue, proposal, policy, hasApproved] = await Promise.all([
+    simulateNative(server, account, "get_proposal_state", { proposal_id: id }),
+    simulateNative(server, account, "get_proposal", { proposal_id: id }),
+    simulateNative(server, account, "get_policy", {}),
+    simulateNative(server, account, "has_approved", { proposal_id: id, approver: address }),
+  ]);
+  const tag = enumTag(stateValue);
+  const state = PROPOSAL_STATES.find((s) => s === tag);
+  if (!state) throw new Error(`Live controller returned an unknown proposal state: ${String(tag)}`);
+  const p = proposal as Record<string, unknown>;
+  const pol = policy as Record<string, unknown>;
+  const approvers = Array.isArray(pol.approvers) ? (pol.approvers as unknown[]).map(String) : [];
+  const executeAfter = p.execute_after_ledger;
+  return {
+    ledger: snapshot.ledger,
+    state,
+    proposer: String(p.proposer),
+    approvalCount: num(p.approval_count, "approval count"),
+    threshold: num(pol.threshold, "threshold"),
+    timelockLedgers: num(pol.timelock_ledgers, "timelock"),
+    executeAfterLedger: executeAfter === undefined || executeAfter === null ? null : num(executeAfter, "execute-after ledger"),
+    expiresLedger: num(p.expires_ledger, "expiry ledger"),
+    isApprover: approvers.includes(address),
+    hasApproved: hasApproved === true,
+  };
+}
