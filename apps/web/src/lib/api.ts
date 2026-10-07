@@ -1,14 +1,16 @@
 export class ApiError extends Error { constructor(readonly status: number, message: string) { super(message); } }
 
-export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+export async function api<T>(path: string, init?: RequestInit, timeoutMs = 10_000): Promise<T> {
   const base = process.env.NEXT_PUBLIC_API_BASE_URL;
   if (!base) throw new ApiError(503, "The Console API is not configured.");
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 10_000);
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
     const headers = new Headers(init?.headers);
     headers.set("Accept", "application/json");
-    if (init?.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+    // FormData (file uploads) must keep the multipart boundary the browser
+    // generates; forcing JSON here would silently break the upload.
+    if (init?.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
     const response = await fetch(new URL(path, base), {
       ...init,
       headers,

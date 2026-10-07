@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { DataList } from "@/components/data-list";
 
 export default function AnalysesPage() {
@@ -9,6 +10,9 @@ export default function AnalysesPage() {
           <h1>Analyses</h1>
           <p>Engine comparison jobs persisted by the worker. Open one to review findings and evidence.</p>
         </div>
+        <Link className="button button-accent" href="/app/analyses/new">
+          New analysis
+        </Link>
       </header>
       <DataList
         endpoint="/api/v1/analyses"
