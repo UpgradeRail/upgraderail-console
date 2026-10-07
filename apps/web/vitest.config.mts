@@ -3,6 +3,7 @@ import path from "node:path";
 
 export default defineConfig({
   test: {
+    include: ["src/**/*.test.{ts,tsx}"],
     alias: {
       "@": path.resolve(import.meta.dirname, "./src"),
     },
