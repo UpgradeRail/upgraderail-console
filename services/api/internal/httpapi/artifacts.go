@@ -33,7 +33,7 @@ const maxArtifactUploadBytes = MaxArtifactUploadBytes
 // file at exactly the limit is not rejected for the envelope around it.
 const multipartOverheadBytes int64 = 64 << 10 // 64 KiB
 
-func registerArtifactRoutes(mux *http.ServeMux, repository Repository, artifacts artifactstore.Filesystem) {
+func registerArtifactRoutes(mux *http.ServeMux, repository Repository, artifacts artifactstore.Store) {
 	mux.HandleFunc("POST /api/v1/artifacts", func(w http.ResponseWriter, request *http.Request) {
 		session, ok := requireSession(w, request, repository)
 		if !ok {
@@ -103,12 +103,12 @@ func registerArtifactRoutes(mux *http.ServeMux, repository Repository, artifacts
 // are small) that catches a corrupted or tampered-with file on disk before
 // a job is queued for it, rather than only discovering that when the
 // worker tries to run the Engine much later.
-func verifyArtifactExists(ctx context.Context, repository Repository, artifacts artifactstore.Filesystem, id string) (store.Artifact, error) {
+func verifyArtifactExists(ctx context.Context, repository Repository, artifacts artifactstore.Store, id string) (store.Artifact, error) {
 	record, err := repository.GetArtifact(ctx, id)
 	if err != nil {
 		return store.Artifact{}, fmt.Errorf("%w: %s", errArtifactNotFound, id)
 	}
-	if err := artifacts.VerifyHash(record.StorageKey, record.SHA256); err != nil {
+	if err := artifactstore.VerifyHash(ctx, artifacts, record.StorageKey, record.SHA256); err != nil {
 		return store.Artifact{}, fmt.Errorf("%w: %s: %s", errArtifactCorrupt, id, err)
 	}
 	return record, nil

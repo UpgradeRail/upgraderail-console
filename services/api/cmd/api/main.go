@@ -41,8 +41,11 @@ func main() {
 		logger.Error("AUTH_DOMAIN must match WEB_ORIGIN hostname", "service", "api")
 		os.Exit(1)
 	}
-	artifactRoot := absoluteEnv("ARTIFACT_LOCAL_DIR", "./artifacts")
-	artifacts := artifactstore.Filesystem{Directory: artifactRoot, MaxBytes: maxArtifactBytes()}
+	artifacts, err := artifactstore.FromEnv(maxArtifactBytes())
+	if err != nil {
+		logger.Error("artifact storage configuration invalid", "service", "api", "error", err)
+		os.Exit(1)
+	}
 
 	server := &http.Server{
 		Addr:              address(),

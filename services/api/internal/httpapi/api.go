@@ -45,7 +45,7 @@ type Repository interface {
 	GetArtifact(context.Context, string) (store.Artifact, error)
 }
 
-func New(repository Repository, domain, origin string, artifacts artifactstore.Filesystem) http.Handler {
+func New(repository Repository, domain, origin string, artifacts artifactstore.Store) http.Handler {
 	mux := http.NewServeMux()
 	auth.Register(mux, repository, domain, origin)
 	registerArtifactRoutes(mux, repository, artifacts)

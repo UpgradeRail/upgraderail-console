@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/UpgradeRail/upgraderail-console/services/shared/artifactstore"
 	"github.com/UpgradeRail/upgraderail-console/services/worker/internal/engine"
 	"github.com/UpgradeRail/upgraderail-console/services/worker/internal/jobs"
 )
@@ -20,7 +21,11 @@ func main() {
 		logger.Error("DATABASE_URL is required", "service", "worker")
 		os.Exit(1)
 	}
-	artifactRoot := absoluteEnv("ARTIFACT_LOCAL_DIR", "./artifacts")
+	artifacts, err := artifactstore.FromEnv(1 << 62)
+	if err != nil {
+		logger.Error("artifact storage configuration invalid", "service", "worker", "error", err)
+		os.Exit(1)
+	}
 	workspaceRoot := absoluteEnv("UPGRADERAIL_WORK_DIR", "./tmp")
 	if err := os.MkdirAll(workspaceRoot, 0700); err != nil {
 		logger.Error("create workspace root", "service", "worker", "error", err)
@@ -36,7 +41,7 @@ func main() {
 	defer stop()
 	runner := engine.Runner{Binary: env("UPGRADERAIL_ENGINE_BIN", "upgraderail"), Timeout: 2 * time.Minute}
 	for ctx.Err() == nil {
-		ran, err := jobs.RunOne(ctx, store, runner, artifactRoot, workspaceRoot)
+		ran, err := jobs.RunOne(ctx, store, runner, artifacts, workspaceRoot)
 		if err != nil {
 			logger.Error("analysis job failed", "service", "worker", "error", err)
 		}

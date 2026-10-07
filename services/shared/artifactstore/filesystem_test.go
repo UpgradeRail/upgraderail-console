@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -43,18 +44,18 @@ func TestFilesystemOpenAndVerifyHashRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.VerifyHash(stored.Key, stored.SHA256); err != nil {
+	if err := VerifyHash(context.Background(), store, stored.Key, stored.SHA256); err != nil {
 		t.Fatalf("expected hash to verify, got %v", err)
 	}
-	if err := store.VerifyHash(stored.Key, "not-the-real-hash"); err == nil {
+	if err := VerifyHash(context.Background(), store, stored.Key, "not-the-real-hash"); err == nil {
 		t.Fatal("expected a mismatched hash to fail verification")
 	}
-	file, err := store.Open(stored.Key)
+	file, err := store.Open(context.Background(), stored.Key)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer file.Close()
-	data, err := os.ReadFile(file.Name())
+	data, err := io.ReadAll(file)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,10 +66,10 @@ func TestFilesystemOpenAndVerifyHashRoundTrip(t *testing.T) {
 
 func TestFilesystemOpenRejectsPathTraversal(t *testing.T) {
 	store := Filesystem{Directory: t.TempDir(), MaxBytes: 16}
-	if _, err := store.Open("../../etc/passwd"); err == nil {
+	if _, err := store.Open(context.Background(), "../../etc/passwd"); err == nil {
 		t.Fatal("expected path traversal to be rejected")
 	}
-	if _, err := store.Open("/etc/passwd"); err == nil {
+	if _, err := store.Open(context.Background(), "/etc/passwd"); err == nil {
 		t.Fatal("expected absolute paths to be rejected")
 	}
 }

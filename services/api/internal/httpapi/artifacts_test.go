@@ -189,7 +189,7 @@ func TestUploadArtifactStoresRealHashAndMetadata(t *testing.T) {
 	// worker reads from, addressed by the server-computed hash.
 	stored := artifactstore.Filesystem{Directory: env.artifactRoot, MaxBytes: MaxArtifactUploadBytes}
 	key := filepath.Join(expectedHex[:2], expectedHex)
-	file, err := stored.Open(key)
+	file, err := stored.Open(context.Background(), key)
 	if err != nil {
 		t.Fatalf("expected the artifact to be readable from storage: %v", err)
 	}

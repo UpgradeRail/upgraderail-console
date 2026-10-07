@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/UpgradeRail/upgraderail-console/services/shared/artifactstore"
 	"github.com/UpgradeRail/upgraderail-console/services/worker/internal/engine"
 )
 
@@ -57,7 +58,7 @@ func TestRunOneFailsJobWhenArtifactBytesAreMissing(t *testing.T) {
 	// Binary is intentionally left empty: if RunOne ever tried to invoke the
 	// Engine for this job it would fail with an engine-binary error instead
 	// of the expected artifact-read error, and this assertion would catch it.
-	ran, err := RunOne(ctx, store, engine.Runner{Timeout: 10 * time.Second}, artifactRoot, t.TempDir())
+	ran, err := RunOne(ctx, store, engine.Runner{Timeout: 10 * time.Second}, artifactstore.Filesystem{Directory: artifactRoot, MaxBytes: 1 << 62}, t.TempDir())
 	if err == nil {
 		t.Fatal("expected a missing current artifact to fail the job")
 	}

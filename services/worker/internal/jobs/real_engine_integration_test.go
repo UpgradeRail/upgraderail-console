@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/UpgradeRail/upgraderail-console/services/shared/artifactstore"
 	"github.com/UpgradeRail/upgraderail-console/services/worker/internal/engine"
 )
 
@@ -55,7 +56,7 @@ func TestRunOneWithRealEnginePersistsReportAndManifest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ran, err := RunOne(ctx, store, engine.Runner{Binary: engineBinary, Timeout: 60 * time.Second}, artifactRoot, t.TempDir())
+	ran, err := RunOne(ctx, store, engine.Runner{Binary: engineBinary, Timeout: 60 * time.Second}, artifactstore.Filesystem{Directory: artifactRoot, MaxBytes: 1 << 62}, t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +135,7 @@ func TestRunOneWithRealEngineRecordsFailureReason(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ran, err := RunOne(ctx, store, engine.Runner{Binary: engineBinary, Timeout: 60 * time.Second}, artifactRoot, t.TempDir())
+	ran, err := RunOne(ctx, store, engine.Runner{Binary: engineBinary, Timeout: 60 * time.Second}, artifactstore.Filesystem{Directory: artifactRoot, MaxBytes: 1 << 62}, t.TempDir())
 	if err == nil {
 		t.Fatal("expected engine failure for missing candidate artifact")
 	}

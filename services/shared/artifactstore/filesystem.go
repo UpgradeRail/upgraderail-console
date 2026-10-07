@@ -89,7 +89,7 @@ func (s Filesystem) Put(ctx context.Context, input io.Reader) (Stored, error) {
 
 // Open returns a reader for a previously stored artifact identified by its
 // storage key (as returned in Stored.Key). The caller must Close it.
-func (s Filesystem) Open(key string) (*os.File, error) {
+func (s Filesystem) Open(_ context.Context, key string) (io.ReadCloser, error) {
 	path, err := s.path(key)
 	if err != nil {
 		return nil, err
@@ -99,27 +99,6 @@ func (s Filesystem) Open(key string) (*os.File, error) {
 		return nil, fmt.Errorf("open artifact: %w", err)
 	}
 	return file, nil
-}
-
-// VerifyHash re-reads a stored artifact and recomputes its SHA-256,
-// returning an error if it no longer matches the expected hash. This is
-// used where a caller wants to confirm the bytes on disk still match what
-// was recorded at upload time, rather than trusting the recorded hash.
-func (s Filesystem) VerifyHash(key, expectedSHA256 string) error {
-	file, err := s.Open(key)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	hash := sha256.New()
-	if _, err := io.Copy(hash, file); err != nil {
-		return fmt.Errorf("read artifact for verification: %w", err)
-	}
-	actual := hex.EncodeToString(hash.Sum(nil))
-	if actual != expectedSHA256 {
-		return fmt.Errorf("artifact hash mismatch: expected %s, got %s", expectedSHA256, actual)
-	}
-	return nil
 }
 
 func (s Filesystem) path(key string) (string, error) {
