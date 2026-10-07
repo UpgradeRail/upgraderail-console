@@ -45,3 +45,36 @@ Local only, on a disposable PostgreSQL 16 container; still no public deployment.
 This pass's scope was proposal reconciliation only (no deployment work). From a freshly migrated, disposable PostgreSQL 16 container (no prior state), the compiled indexer binary was run directly (not via `go test`) against the real, deployed Testnet controller `CCMC4WGOCRU34RYO4YK64QVDNOMJBS27SBHH42ARQ7NOCQPZMRZMSLR3` from ledger 4,969,430. It journaled the same 12 real events recorded above, and both proposals (`CreateFleet` and `UpgradeFleet`, both `Executed`) ended up with `kind` and `manifest_hash` populated and `reconciled_at` set — via the event-derived path, since both have execution events, so neither needed an RPC round trip in this run. The compiled API, pointed at the same database, served both via `GET /api/v1/proposals` and `GET /api/v1/proposals/:id` with `kind`/`manifest_hash` present in snake_case JSON.
 
 This controller has no live unexecuted proposal, so the RPC-filled reconciliation path (as opposed to the event-derived one) could not be observed end-to-end against an organically pending proposal. It was instead verified by deliberately clearing proposal 2's `kind`/`manifest_hash`/`reconciled_at` back to the pre-reconciliation `NULL` state and confirming the real reconciliation pass restored them via a live, read-only `simulateTransaction` call to the contract's `get_proposal` (`services/indexer/internal/reconcile/live_testnet_test.go:TestRunReconcilesAgainstLiveTestnetController`). No chain mutation occurred; no transaction was signed or submitted.
+
+## Addendum: 2026-10-07 Public Staging Deployment Pass
+
+### Status: Web Staging Deployed & Verified; Backend Services Unprovisioned
+
+- **Web Application**:
+  - Deployed publicly to Vercel: `https://upgraderail-console.vercel.app` (linked project `upgraderail-console`, team `hollujays-projects`).
+  - Production alias: `upgraderail-console.vercel.app` mapped to deployment `upgraderail-console-o3ri6hpih-hollujays-projects.vercel.app`.
+  - Framework: Next.js 15 (monorepo root-aware build with frozen lockfile via `rootDirectory: "apps/web"`).
+  - Public environment variables configured:
+    - `NEXT_PUBLIC_STELLAR_NETWORK=testnet`
+    - `NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE="Test SDF Network ; September 2015"`
+    - `NEXT_PUBLIC_STELLAR_RPC_URL="https://soroban-testnet.stellar.org"`
+    - `NEXT_PUBLIC_CONTROLLER_ID="CAJX4YE77N23K53MNJHYMCZIFXGMUEHSNZPHXAHDVZU5IYXUK4OQXTWS"`
+  - Live HTTP status 200 verified on public routes: `/`, `/app`, `/explore`, `/how-it-works`, `/security`, `/developers`, `/docs`, `/app/fleets`, `/app/upgrades`, `/app/analyses`, and `/api/health`.
+  - Security headers verified on public origin:
+    - `Content-Security-Policy`: `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://soroban-testnet.stellar.org; frame-ancestors 'none';`
+    - `X-Frame-Options: DENY`
+    - `X-Content-Type-Options: nosniff`
+    - `Referrer-Policy: strict-origin-when-cross-origin`
+
+- **Backend Services (API, Indexer, Worker, Database)**:
+  - Architecture defined: Long-running Go services for API, Indexer, and Worker with PostgreSQL 15+ database and durable filesystem or object storage.
+  - Deployment status: **Unprovisioned on public cloud**. The local workstation environment lacks active credentials or tokens for cloud providers capable of hosting stateful long-running Go daemons or managed PostgreSQL (e.g. Render, Fly.io, Railway, Neon, Supabase).
+  - Consistent with repository verification rules ("Do not fabricate deployment URLs", "Do not claim READY unless all services are deployed and verified"), backend services are not falsely reported as deployed.
+  - Staging database bootstrap automation provided in `scripts/bootstrap-staging-db.sh` and staging configuration verification in `scripts/verify-staging-env.sh`.
+
+- **Rollback Runbook**:
+  - Web: Instant zero-downtime rollback using `vercel rollback` or `vercel alias set <previous-deployment-url> upgraderail-console.vercel.app`.
+  - API/Worker/Indexer: Stop running process/container; redeploy previous container tag or binary; restart.
+  - Database: Schema migrations do not feature down migrations; restore from pre-migration point-in-time snapshot.
+  - Indexer recovery: Indexer safely restarts from `indexer_checkpoints` cursor; duplicate journal insertion is prevented by `(network_id, transaction_hash, event_index)` unique constraint.
+
