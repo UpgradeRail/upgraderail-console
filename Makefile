@@ -1,4 +1,4 @@
-.PHONY: install dev build lint test go-test vet verify-env verify-staging-env verify-fresh-migrations smoke-test
+.PHONY: install dev build lint test go-test vet verify-env verify-staging-env verify-fresh-migrations bootstrap-staging-db smoke-test
 
 install:
 	pnpm install --frozen-lockfile
@@ -29,6 +29,9 @@ verify-staging-env:
 
 verify-fresh-migrations:
 	./scripts/verify-fresh-migrations.sh
+
+bootstrap-staging-db:
+	./scripts/bootstrap-staging-db.sh
 
 smoke-test:
 	./scripts/smoke-test.sh

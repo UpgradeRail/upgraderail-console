@@ -22,6 +22,45 @@ Before deployment, configure an absolute `ARTIFACT_LOCAL_DIR`, `UPGRADERAIL_ENGI
 - Artifact storage must be durable and shared between the API path that writes uploaded artifacts (`POST /api/v1/artifacts`) and the worker path that reads them to run the Engine. Both now go through the same `services/shared/artifactstore.Filesystem` abstraction, pointed at the same `ARTIFACT_LOCAL_DIR` on both processes.
 - `ARTIFACT_LOCAL_DIR` is acceptable only when the API and worker share a persistent filesystem (the same host, or a shared volume). Otherwise, add and verify an object-store implementation (including SHA-256 verification on read) before deployment; none exists in this repository.
 
+### Staging Database Setup
+
+To provision and initialize a staging PostgreSQL database (e.g., Supabase, Neon, Render, or Railway):
+
+1. **Provision Database**:
+   - Create an empty PostgreSQL 15+ database instance.
+   - Obtain the SSL-enabled connection string: `DATABASE_URL="postgres://user:password@host:port/database?sslmode=require"`.
+
+2. **Automated Bootstrap**:
+   - Run the bootstrap script or Makefile target:
+     ```bash
+     DATABASE_URL="<staging-db-url>" \
+     STELLAR_NETWORK="testnet" \
+     UPGRADERAIL_CONTROLLER_ID="CAJX4YE77N23K53MNJHYMCZIFXGMUEHSNZPHXAHDVZU5IYXUK4OQXTWS" \
+     UPGRADERAIL_START_LEDGER="5035000" \
+     make bootstrap-staging-db
+     ```
+   - This executes migrations `000001` through `000004` sequentially, seeds the `networks` record for Testnet, and seeds the staging `controllers` record.
+
+3. **Manual Migration & Seeding**:
+   - Apply each migration file from `database/migrations/*.sql` in order with `psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f <file>`.
+   - Seed the Testnet network row:
+     ```sql
+     INSERT INTO networks (id, passphrase, rpc_url, protocol_target)
+     VALUES ('testnet', 'Test SDF Network ; September 2015', 'https://soroban-testnet.stellar.org', 28)
+     ON CONFLICT (id) DO UPDATE
+     SET passphrase = EXCLUDED.passphrase, rpc_url = EXCLUDED.rpc_url, protocol_target = EXCLUDED.protocol_target;
+     ```
+   - Seed the staging controller row:
+     ```sql
+     INSERT INTO controllers (id, network_id, contract_id, start_ledger)
+     VALUES ('testnet-cajx', 'testnet', 'CAJX4YE77N23K53MNJHYMCZIFXGMUEHSNZPHXAHDVZU5IYXUK4OQXTWS', 5035000)
+     ON CONFLICT (network_id, contract_id) DO NOTHING;
+     ```
+
+4. **Verify Schema and Constraints**:
+   - Confirm all 14 expected tables (`networks`, `controllers`, `fleets`, `proposals`, `approvals`, `controller_events`, `fleet_upgrades`, `artifacts`, `analysis_jobs`, `analysis_reports`, `release_manifests`, `indexer_checkpoints`, `auth_challenges`, `sessions`) exist.
+   - Verify connection readiness from API (`GET /health/ready`), Indexer (`resuming=true` / ready logs), and Worker (`FOR UPDATE SKIP LOCKED` query check).
+
 ## Secrets
 
 - `DATABASE_URL`, private RPC headers, and future object-store credentials are server-only secrets. Treat `SESSION_SECRET` as server-only if configured, even though this version does not use it.
