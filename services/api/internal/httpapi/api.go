@@ -14,6 +14,7 @@ import (
 
 	"github.com/UpgradeRail/upgraderail-console/services/api/internal/auth"
 	"github.com/UpgradeRail/upgraderail-console/services/api/internal/store"
+	"github.com/UpgradeRail/upgraderail-console/services/shared/artifactstore"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -40,11 +41,14 @@ type Repository interface {
 	GetAnalysis(context.Context, string) (store.AnalysisJob, error)
 	GetAnalysisReport(context.Context, string) (store.AnalysisReport, error)
 	GetManifest(context.Context, string) (store.Manifest, error)
+	CreateArtifact(context.Context, store.ArtifactInput) (store.Artifact, error)
+	GetArtifact(context.Context, string) (store.Artifact, error)
 }
 
-func New(repository Repository, domain, origin string) http.Handler {
+func New(repository Repository, domain, origin string, artifacts artifactstore.Filesystem) http.Handler {
 	mux := http.NewServeMux()
 	auth.Register(mux, repository, domain, origin)
+	registerArtifactRoutes(mux, repository, artifacts)
 	mux.HandleFunc("GET /api/v1/health", func(w http.ResponseWriter, _ *http.Request) {
 		write(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
@@ -131,7 +135,11 @@ func New(repository Repository, domain, origin string) http.Handler {
 		if !ok {
 			return
 		}
-		var input struct{ Network, CurrentArtifactID, CandidateArtifactID string }
+		var input struct {
+			Network             string `json:"network"`
+			CurrentArtifactID   string `json:"current_artifact_id"`
+			CandidateArtifactID string `json:"candidate_artifact_id"`
+		}
 		if !decode(request, &input) {
 			errorResponse(w, http.StatusBadRequest, "invalid_json", "Request body must be valid JSON.")
 			return
@@ -142,6 +150,14 @@ func New(repository Repository, domain, origin string) http.Handler {
 		}
 		if input.Network != session.Network {
 			errorResponse(w, http.StatusForbidden, "network_mismatch", "Session does not authorize this network.")
+			return
+		}
+		if _, err := verifyArtifactExists(request.Context(), repository, artifacts, input.CurrentArtifactID); err != nil {
+			errorResponse(w, http.StatusBadRequest, "artifact_not_found", "The current artifact does not exist or its stored bytes failed verification.")
+			return
+		}
+		if _, err := verifyArtifactExists(request.Context(), repository, artifacts, input.CandidateArtifactID); err != nil {
+			errorResponse(w, http.StatusBadRequest, "artifact_not_found", "The candidate artifact does not exist or its stored bytes failed verification.")
 			return
 		}
 		id := randomID()

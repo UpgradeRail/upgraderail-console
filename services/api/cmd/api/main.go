@@ -7,11 +7,14 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/UpgradeRail/upgraderail-console/services/api/internal/httpapi"
 	"github.com/UpgradeRail/upgraderail-console/services/api/internal/store"
+	"github.com/UpgradeRail/upgraderail-console/services/shared/artifactstore"
 )
 
 func main() {
@@ -38,9 +41,12 @@ func main() {
 		logger.Error("AUTH_DOMAIN must match WEB_ORIGIN hostname", "service", "api")
 		os.Exit(1)
 	}
+	artifactRoot := absoluteEnv("ARTIFACT_LOCAL_DIR", "./artifacts")
+	artifacts := artifactstore.Filesystem{Directory: artifactRoot, MaxBytes: maxArtifactBytes()}
+
 	server := &http.Server{
 		Addr:              address(),
-		Handler:           httpapi.New(store, domain, origin),
+		Handler:           httpapi.New(store, domain, origin, artifacts),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -67,4 +73,32 @@ func address() string {
 		return value
 	}
 	return ":8080"
+}
+
+func absoluteEnv(key, fallback string) string {
+	value := fallback
+	if raw := os.Getenv(key); raw != "" {
+		value = raw
+	}
+	absolute, err := filepath.Abs(value)
+	if err != nil {
+		panic(err)
+	}
+	return absolute
+}
+
+// maxArtifactBytes is the storage-layer size limit. It defaults to the
+// same limit the HTTP handler enforces at the request layer; ARTIFACT_MAX_BYTES
+// can lower it further but never needs to raise it past what the handler
+// already rejects.
+func maxArtifactBytes() int64 {
+	raw := os.Getenv("ARTIFACT_MAX_BYTES")
+	if raw == "" {
+		return httpapi.MaxArtifactUploadBytes
+	}
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || value <= 0 {
+		return httpapi.MaxArtifactUploadBytes
+	}
+	return value
 }

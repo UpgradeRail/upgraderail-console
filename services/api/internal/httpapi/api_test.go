@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/UpgradeRail/upgraderail-console/services/api/internal/store"
+	"github.com/UpgradeRail/upgraderail-console/services/shared/artifactstore"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -73,7 +74,7 @@ func TestFleetProposalApprovalEndpointsServeProjectedReadModels(t *testing.T) {
 	}
 	defer repository.Close()
 
-	server := httptest.NewServer(New(repository, "example.com", "https://example.com"))
+	server := httptest.NewServer(New(repository, "example.com", "https://example.com", artifactstore.Filesystem{Directory: t.TempDir(), MaxBytes: MaxArtifactUploadBytes}))
 	defer server.Close()
 	client := server.Client()
 
@@ -165,7 +166,7 @@ func TestFleetProposalEndpointsOnEmptyDatabaseReturnEmptyLists(t *testing.T) {
 	}
 	defer repository.Close()
 
-	server := httptest.NewServer(New(repository, "example.com", "https://example.com"))
+	server := httptest.NewServer(New(repository, "example.com", "https://example.com", artifactstore.Filesystem{Directory: t.TempDir(), MaxBytes: MaxArtifactUploadBytes}))
 	defer server.Close()
 	client := server.Client()
 
@@ -257,7 +258,7 @@ func TestAnalysisEndpointsServeSnakeCaseJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer repository.Close()
-	server := httptest.NewServer(New(repository, "example.com", "https://example.com"))
+	server := httptest.NewServer(New(repository, "example.com", "https://example.com", artifactstore.Filesystem{Directory: t.TempDir(), MaxBytes: MaxArtifactUploadBytes}))
 	defer server.Close()
 	client := server.Client()
 
