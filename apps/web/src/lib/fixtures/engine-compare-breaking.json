@@ -1,0 +1,62 @@
+{
+  "status": "BLOCKED",
+  "findings": [
+    {
+      "code": "FUNC001",
+      "severity": "BLOCKING",
+      "title": "Public function removed",
+      "message": "Function `__constructor` is absent from the candidate contract.",
+      "evidence": [
+        {
+          "kind": "current_function",
+          "reference": "__constructor"
+        }
+      ]
+    },
+    {
+      "code": "FUNC001",
+      "severity": "BLOCKING",
+      "title": "Public function removed",
+      "message": "Function `get_value` is absent from the candidate contract.",
+      "evidence": [
+        {
+          "kind": "current_function",
+          "reference": "get_value"
+        }
+      ]
+    },
+    {
+      "code": "FUNC001",
+      "severity": "BLOCKING",
+      "title": "Public function removed",
+      "message": "Function `set_value` is absent from the candidate contract.",
+      "evidence": [
+        {
+          "kind": "current_function",
+          "reference": "set_value"
+        }
+      ]
+    },
+    {
+      "code": "FUNC004",
+      "severity": "INFO",
+      "title": "Public function added",
+      "message": "Function `read_text` was added by the candidate contract.",
+      "evidence": [
+        {
+          "kind": "candidate_function",
+          "reference": "read_text"
+        }
+      ]
+    },
+    {
+      "code": "SPEC010",
+      "severity": "INFO",
+      "title": "Storage compatibility is not statically proven",
+      "message": "Soroban contract specifications do not expose all private storage keys or state invariants. Run an explicit migration scenario.",
+      "evidence": []
+    }
+  ],
+  "storage_compatibility": "NOT PROVEN BY STATIC ANALYSIS",
+  "authorization_behavior": "NOT TESTED"
+}
