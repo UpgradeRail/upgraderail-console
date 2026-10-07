@@ -1,3 +1,5 @@
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import AppFleetDetailPage from "./app/fleets/[fleetId]/page";
 import AppProposalDetailPage from "./app/upgrades/[proposalId]/page";
@@ -17,20 +19,16 @@ describe("dynamic detail routes", () => {
     expect(typeof ExploreProposalDetailPage).toBe("function");
   });
 
-  it("instantiates route page elements without throw", async () => {
-    const fleetPage = await AppFleetDetailPage();
-    expect(fleetPage).toBeDefined();
-
-    const proposalPage = await AppProposalDetailPage();
-    expect(proposalPage).toBeDefined();
-
-    const analysisPage = await AppFleetAnalysisPage();
-    expect(analysisPage).toBeDefined();
-
-    const exploreFleetPage = await ExploreFleetDetailPage();
-    expect(exploreFleetPage).toBeDefined();
-
-    const exploreProposalPage = await ExploreProposalDetailPage();
-    expect(exploreProposalPage).toBeDefined();
+  it("renders every route page through React without throwing", () => {
+    const pages = [
+      AppFleetDetailPage,
+      AppProposalDetailPage,
+      AppFleetAnalysisPage,
+      ExploreFleetDetailPage,
+      ExploreProposalDetailPage,
+    ] as unknown as React.ComponentType<Record<string, string>>[];
+    for (const Page of pages) {
+      expect(() => renderToStaticMarkup(React.createElement(Page, { fleetId: "f", proposalId: "1" }))).not.toThrow();
+    }
   });
 });
