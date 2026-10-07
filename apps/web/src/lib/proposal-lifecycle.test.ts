@@ -5,7 +5,8 @@ import { describeLifecycle, projectionLags } from "./proposal-lifecycle";
 const me = "GME";
 const live = (over: Partial<LiveProposal> = {}): LiveProposal => ({
   ledger: 100, state: "AwaitingApprovals", proposer: "GOTHER", approvalCount: 1, threshold: 2,
-  timelockLedgers: 50, executeAfterLedger: null, expiresLedger: 500, isApprover: true, hasApproved: false, ...over,
+  timelockLedgers: 50, executeAfterLedger: null, expiresLedger: 500, isApprover: true, hasApproved: false,
+  kind: "UpgradeFleet", manifestHash: null, expectedWasmHash: null, newWasmHash: null, ...over,
 });
 const allowed = (l: ReturnType<typeof describeLifecycle>) =>
   Object.entries(l.actions).filter(([, a]) => a.allowed).map(([k]) => k);

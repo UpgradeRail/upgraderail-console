@@ -16,6 +16,10 @@ export function LifecycleCard({ lifecycle, live, projectedStatus }: { lifecycle:
         <div><dt>Execute after ledger</dt><dd>{live.executeAfterLedger ?? "Not started (threshold not reached)"}</dd></div>
         <div><dt>Timelock remaining</dt><dd>{lifecycle.timelockRemaining === null ? (lifecycle.state === "Ready" ? "Elapsed" : "Not running") : `${lifecycle.timelockRemaining} ledgers`}</dd></div>
         <div><dt>Expires at ledger</dt><dd>{live.expiresLedger}{lifecycle.terminal ? "" : ` (${lifecycle.expiresIn} ledgers remaining)`}</dd></div>
+        <div><dt>Kind (live)</dt><dd>{live.kind ?? "Unknown"}</dd></div>
+        <div><dt>Manifest hash (live)</dt><dd>{live.manifestHash ?? "Unknown"}</dd></div>
+        <div><dt>Expected current WASM</dt><dd>{live.expectedWasmHash ?? "Not applicable to this kind"}</dd></div>
+        <div><dt>Target WASM</dt><dd>{live.newWasmHash ?? "Not applicable to this kind"}</dd></div>
         <div><dt>Indexed status</dt><dd>{projectedStatus ?? "Unknown"}{projectionLags(projectedStatus, lifecycle.state) ? " — the indexed projection is behind the live state" : ""}</dd></div>
       </dl>
     </section>

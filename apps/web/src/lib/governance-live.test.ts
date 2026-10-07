@@ -66,6 +66,7 @@ describe("readLiveProposal", () => {
     expect(live).toEqual({
       ledger: 70, state: "Timelocked", proposer, approvalCount: 2, threshold: 2, timelockLedgers: 50,
       executeAfterLedger: 90, expiresLedger: 400, isApprover: true, hasApproved: true,
+      kind: "UpgradeFleet", manifestHash: "01".repeat(32), expectedWasmHash: "01".repeat(32), newWasmHash: "01".repeat(32),
     });
     // Only simulations: nothing is signed or sent.
     expect(simulate).toHaveBeenCalled();
@@ -88,5 +89,17 @@ describe("readLiveProposal", () => {
       return { _parsed: true, latestLedger: 100, minResourceFee: "1", transactionData: {}, result: { retval: nativeToScVal(1n, { type: name === "get_controller_version" ? "u32" : "u64" }), auth: [] } };
     });
     await expect(readLiveProposal(server, address, 5)).rejects.toThrow("get_proposal_state failed");
+  });
+});
+
+describe("describeProposalKind", () => {
+  it("reads kind and hashes from each payload shape and never invents them", async () => {
+    const { describeProposalKind } = await import("./governance-tx");
+    const b = (n: number) => Uint8Array.from(Buffer.alloc(32, n));
+    expect(describeProposalKind({ tag: "CreateFleet", values: [{ manifest_hash: b(2), initial_wasm_hash: b(3) }] }))
+      .toEqual({ kind: "CreateFleet", manifestHash: "02".repeat(32), expectedWasmHash: null, newWasmHash: "03".repeat(32) });
+    expect(describeProposalKind({ tag: "UpdatePolicy", values: [{ policy: {} }] }))
+      .toEqual({ kind: "UpdatePolicy", manifestHash: null, expectedWasmHash: null, newWasmHash: null });
+    expect(describeProposalKind(undefined)).toEqual({ kind: null, manifestHash: null, expectedWasmHash: null, newWasmHash: null });
   });
 });

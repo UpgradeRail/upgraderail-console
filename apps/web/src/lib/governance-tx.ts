@@ -490,7 +490,31 @@ export type LiveProposal = {
   expiresLedger: number;
   isApprover: boolean;
   hasApproved: boolean;
+  /** Proposal kind tag read from get_proposal; independent of the indexed projection. */
+  kind: string | null;
+  manifestHash: string | null;
+  /** UpgradeFleet only: the WASM hash the proposal expects the fleet to run, and the candidate. */
+  expectedWasmHash: string | null;
+  newWasmHash: string | null;
 };
+
+function hexOf(value: unknown): string | null {
+  if (value instanceof Uint8Array) return Array.from(value, (b) => b.toString(16).padStart(2, "0")).join("");
+  return null;
+}
+
+/** Decodes the ProposalKind union ({tag, values:[payload]}) without assuming a variant. */
+export function describeProposalKind(kind: unknown): Pick<LiveProposal, "kind" | "manifestHash" | "expectedWasmHash" | "newWasmHash"> {
+  const tag = enumTag(kind);
+  const values = kind && typeof kind === "object" ? (kind as { values?: unknown }).values : undefined;
+  const payload = Array.isArray(values) && values[0] && typeof values[0] === "object" ? (values[0] as Record<string, unknown>) : {};
+  return {
+    kind: tag ?? null,
+    manifestHash: hexOf(payload.manifest_hash),
+    expectedWasmHash: hexOf(payload.expected_wasm_hash),
+    newWasmHash: hexOf(payload.new_wasm_hash ?? payload.initial_wasm_hash),
+  };
+}
 
 /** Enum unit variants decode as {tag}, ["Tag"], or "Tag" depending on the path. */
 export function enumTag(value: unknown): string | undefined {
@@ -577,5 +601,6 @@ export async function readLiveProposal(
     expiresLedger: num(p.expires_ledger, "expiry ledger"),
     isApprover: approvers.includes(address),
     hasApproved: hasApproved === true,
+    ...describeProposalKind(p.kind),
   };
 }
