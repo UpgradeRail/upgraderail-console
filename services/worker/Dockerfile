@@ -17,7 +17,11 @@ COPY services ./services
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/worker ./services/worker/cmd/worker
 
 FROM debian:bookworm-slim
-RUN useradd --system --uid 10001 --create-home worker
+# CA certificates are required for HTTPS to the S3-compatible artifact store.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates \
+ && rm -rf /var/lib/apt/lists/* \
+ && useradd --system --uid 10001 --create-home worker
 COPY --from=engine /engine/target/release/upgraderail /usr/local/bin/upgraderail
 COPY --from=build /out/worker /usr/local/bin/worker
 ENV UPGRADERAIL_ENGINE_BIN=/usr/local/bin/upgraderail \
