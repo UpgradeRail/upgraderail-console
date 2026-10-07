@@ -4,10 +4,41 @@ import { useEffect, useState } from "react";
 import { GovernanceActionPanel } from "./governance-action-panel";
 import { api } from "@/lib/api";
 import type { AnalysisReportRecord, ManifestRecord } from "@/lib/analysis";
-import { buildCreateProposal } from "@/lib/governance-tx";
-import { buildUpgradeFleetKind, type FleetRecord } from "@/lib/proposal-draft";
+import { buildCreateProposal, configuredContractId } from "@/lib/governance-tx";
+import { buildCreateFleetKind, buildUpgradeFleetKind, type FleetRecord } from "@/lib/proposal-draft";
 
 type Fleets = { kind: "loading" } | { kind: "error"; message: string } | { kind: "ready"; value: FleetRecord[] };
+
+function CreateFleetPanel({ report, manifest }: { report: AnalysisReportRecord; manifest: ManifestRecord }) {
+  const [fleetTag, setFleetTag] = useState("");
+
+  return (
+    <div style={{ display: "grid", gap: "16px" }}>
+      <label>
+        <span className="eyebrow">NEW FLEET TAG</span>
+        <br />
+        <input
+          type="text"
+          value={fleetTag}
+          onChange={(event) => setFleetTag(event.target.value)}
+          placeholder="e.g. freighter-verify-2026-10-07"
+        />
+      </label>
+      <GovernanceActionPanel
+        title="Create fleet proposal"
+        description="Submits a CreateFleet proposal that binds the analyzed candidate WASM, as the fleet's initial release, and its manifest hash. Approval and timelock still apply before anything executes."
+        action="create_proposal"
+        details={[]}
+        confirmLabel="Submit proposal to Testnet"
+        build={async (address) => {
+          const draft = await buildCreateFleetKind(fleetTag, report, manifest);
+          if (!draft.ok) throw new Error(draft.reason);
+          return buildCreateProposal(address, draft.kind);
+        }}
+      />
+    </div>
+  );
+}
 
 export function CreateProposalPanel({ report, manifest }: { report: AnalysisReportRecord; manifest: ManifestRecord }) {
   const [fleets, setFleets] = useState<Fleets>({ kind: "loading" });
@@ -15,8 +46,9 @@ export function CreateProposalPanel({ report, manifest }: { report: AnalysisRepo
 
   useEffect(() => {
     let active = true;
+    const contractId = configuredContractId();
     api<FleetRecord[]>("/api/v1/fleets?limit=100")
-      .then((value) => active && setFleets({ kind: "ready", value }))
+      .then((value) => active && setFleets({ kind: "ready", value: value.filter((f) => f.controller_id === contractId) }))
       .catch((error: unknown) => active && setFleets({ kind: "error", message: error instanceof Error ? error.message : "Fleets could not be loaded." }));
     return () => {
       active = false;
@@ -25,7 +57,7 @@ export function CreateProposalPanel({ report, manifest }: { report: AnalysisRepo
 
   if (fleets.kind === "loading") return <section className="empty-state"><span className="eyebrow">LOADING</span><h2>Reading indexed fleets</h2><p>Needed to bind the proposal to a fleet.</p></section>;
   if (fleets.kind === "error") return <section className="empty-state"><span className="eyebrow">ERROR</span><h2>Fleets unavailable</h2><p>{fleets.message}</p></section>;
-  if (fleets.value.length === 0) return <section className="empty-state"><span className="eyebrow">NO FLEETS</span><h2>No indexed fleets</h2><p>An UpgradeFleet proposal needs an indexed fleet to upgrade.</p></section>;
+  if (fleets.value.length === 0) return <CreateFleetPanel report={report} manifest={manifest} />;
 
   const fleet = fleets.value.find((f) => f.id === fleetId);
   const draft = buildUpgradeFleetKind(fleet, report, manifest);
