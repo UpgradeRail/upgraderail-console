@@ -325,6 +325,29 @@ func TestReconcileProposal(t *testing.T) {
 	}
 }
 
+func TestProposalsNeedingReconciliationIsSafeOnEmptyDB(t *testing.T) {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("DATABASE_URL is required")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	store, err := Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	_, controllerID := seedController(t, ctx, store, "needs-reconcile-empty")
+
+	pending, err := store.ProposalsNeedingReconciliation(ctx, controllerID, 25)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pending) != 0 {
+		t.Fatalf("expected no pending proposals for a controller with none indexed yet, got %#v", pending)
+	}
+}
+
 func TestProposalsNeedingReconciliationExcludesReconciledAndBoundsBatch(t *testing.T) {
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {

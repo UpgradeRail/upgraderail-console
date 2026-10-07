@@ -119,7 +119,7 @@ func run(ctx context.Context) error {
 		// checkpoint above. A failure here is logged and retried on a later
 		// iteration, never fatal to the indexer.
 		if ctx.Err() == nil {
-			if count, err := reconcile.Run(ctx, db, client, controllerID, c.passphrase, reconcile.DefaultBatchSize); err != nil {
+			if count, err := reconcile.Run(ctx, db, client, controllerID, c.controller, c.passphrase, reconcile.DefaultBatchSize); err != nil {
 				slog.Warn("proposal reconciliation pass failed", "service", "indexer", "error", redact(err.Error()))
 			} else if count > 0 {
 				slog.Info("reconciled proposals", "service", "indexer", "count", count)

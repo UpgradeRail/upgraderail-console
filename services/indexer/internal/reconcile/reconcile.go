@@ -36,12 +36,17 @@ type ProposalStore interface {
 const DefaultBatchSize = 25
 
 // Run reconciles up to batchSize proposals that are missing kind/manifest_hash
-// (or whose last attempt hit a retryable failure) for controllerID. It never
-// returns an error for an individual proposal's read failing — that proposal
-// is recorded and skipped — so a temporarily unreachable RPC endpoint cannot
+// (or whose last attempt hit a retryable failure) for the controller row
+// identified by controllerID (the proposals table's internal foreign key, as
+// used elsewhere in this package's DB calls). contractID is the actual
+// Stellar contract address (a "C..." strkey) that the live RPC call targets
+// — these two identifiers are not interchangeable, and conflating them fails
+// every RPC read without touching the database at all. Run never returns an
+// error for an individual proposal's read failing — that proposal is
+// recorded and skipped — so a temporarily unreachable RPC endpoint cannot
 // stall the caller's main loop. It returns the count of proposals it
 // successfully reconciled.
-func Run(ctx context.Context, db ProposalStore, rpc ProposalReader, controllerID, passphrase string, batchSize int) (int, error) {
+func Run(ctx context.Context, db ProposalStore, rpc ProposalReader, controllerID, contractID, passphrase string, batchSize int) (int, error) {
 	if batchSize <= 0 {
 		batchSize = DefaultBatchSize
 	}
@@ -54,7 +59,7 @@ func Run(ctx context.Context, db ProposalStore, rpc ProposalReader, controllerID
 		if err := ctx.Err(); err != nil {
 			return reconciled, nil
 		}
-		result, err := rpc.GetProposalKind(ctx, controllerID, proposal.ProposalID, passphrase)
+		result, err := rpc.GetProposalKind(ctx, contractID, proposal.ProposalID, passphrase)
 		if err != nil {
 			var temporary *indexerrpc.TemporaryError
 			permanent := !errors.As(err, &temporary)

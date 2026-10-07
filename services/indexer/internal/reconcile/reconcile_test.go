@@ -86,7 +86,7 @@ func TestRunReconcilesPendingProposals(t *testing.T) {
 		2: {Kind: "UpdatePolicy"}, // no manifest_hash: genuinely unknown
 	}}
 
-	count, err := Run(context.Background(), db, rpc, "controller", "passphrase", 10)
+	count, err := Run(context.Background(), db, rpc, "controller", "contract-id", "passphrase", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestRunRetriesTransientFailureButNotPermanentOne(t *testing.T) {
 		2: &indexerrpc.ContractReadError{Message: "HostError: Error(Contract, #50)"},
 	}}
 
-	count, err := Run(context.Background(), db, rpc, "controller", "passphrase", 10)
+	count, err := Run(context.Background(), db, rpc, "controller", "contract-id", "passphrase", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestRunBoundsBatchSize(t *testing.T) {
 		1: {Kind: "CreateFleet"}, 2: {Kind: "CreateFleet"},
 	}}
 
-	count, err := Run(context.Background(), db, rpc, "controller", "passphrase", 2)
+	count, err := Run(context.Background(), db, rpc, "controller", "contract-id", "passphrase", 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +142,7 @@ func TestRunDoesNotFailTheCallerWhenAnIndividualReadFails(t *testing.T) {
 	db := newFakeStore(1)
 	rpc := &fakeRPC{errs: map[uint64]error{1: errors.New("boom")}}
 
-	count, err := Run(context.Background(), db, rpc, "controller", "passphrase", 10)
+	count, err := Run(context.Background(), db, rpc, "controller", "contract-id", "passphrase", 10)
 	if err != nil {
 		t.Fatalf("Run must not surface a single proposal's read failure as its own error, got %v", err)
 	}

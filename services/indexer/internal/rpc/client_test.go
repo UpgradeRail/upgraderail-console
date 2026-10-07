@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/UpgradeRail/upgraderail-console/services/indexer/internal/projection"
 )
@@ -155,5 +156,35 @@ func TestFetchControllerEventsLive(t *testing.T) {
 	}
 	if !seen[projection.ProposalCreated] || !seen[projection.FleetCreated] {
 		t.Fatalf("expected controller proposal and fleet events, saw %#v", seen)
+	}
+}
+
+// TestGetProposalKindLive reads proposal 2 from the real, deployed Testnet
+// UpgradeController via simulateTransaction (read-only; nothing is signed or
+// submitted) and checks it decodes to the kind/manifest_hash already recorded
+// in docs/testnet-verification.md from a prior independent read
+// (`stellar contract invoke ... get_proposal`): kind UpgradeFleet, manifest
+// commitment cd8b679e2215a53c3bda375de6112d0d3c0203d017dfcdcfa5e1a63ef6ef088a.
+func TestGetProposalKindLive(t *testing.T) {
+	if os.Getenv("STELLAR_RPC_LIVE") != "1" {
+		t.Skip("STELLAR_RPC_LIVE=1 is required")
+	}
+	endpoint := os.Getenv("STELLAR_RPC_URL")
+	controller := os.Getenv("UPGRADERAIL_CONTROLLER_ID")
+	passphrase := os.Getenv("STELLAR_NETWORK_PASSPHRASE")
+	if endpoint == "" || controller == "" || passphrase == "" {
+		t.Fatal("STELLAR_RPC_URL, UPGRADERAIL_CONTROLLER_ID, and STELLAR_NETWORK_PASSPHRASE are required")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	result, err := Client{Endpoint: endpoint, Network: "testnet"}.GetProposalKind(ctx, controller, 2, passphrase)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Kind != "UpgradeFleet" {
+		t.Fatalf("expected kind UpgradeFleet, got %q", result.Kind)
+	}
+	if result.ManifestHash == nil || *result.ManifestHash != "cd8b679e2215a53c3bda375de6112d0d3c0203d017dfcdcfa5e1a63ef6ef088a" {
+		t.Fatalf("unexpected manifest hash %v", result.ManifestHash)
 	}
 }
