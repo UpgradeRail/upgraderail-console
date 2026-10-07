@@ -2,15 +2,18 @@ package jobs
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
+	"github.com/UpgradeRail/upgraderail-console/services/shared/artifactstore"
 	"github.com/UpgradeRail/upgraderail-console/services/worker/internal/engine"
 )
 
+// RunOne claims at most one queued analysis job and runs it to completion
+// (ready, blocked, or failed). It returns true if a job was claimed, so the
+// caller can poll without sleeping between busy periods.
 func RunOne(ctx context.Context, store *Store, runner engine.Runner, artifactRoot, workspaceRoot string) (bool, error) {
 	job, err := store.Claim(ctx)
 	if err != nil {
@@ -20,19 +23,23 @@ func RunOne(ctx context.Context, store *Store, runner engine.Runner, artifactRoo
 		return false, nil
 	}
 	fail := func(err error) (bool, error) { _ = store.Fail(ctx, job.ID, err); return true, err }
-	current, err := artifactPath(artifactRoot, job.CurrentKey)
-	if err != nil {
-		return fail(err)
-	}
-	candidate, err := artifactPath(artifactRoot, job.CandidateKey)
-	if err != nil {
-		return fail(err)
-	}
+
+	artifacts := artifactstore.Filesystem{Directory: artifactRoot, MaxBytes: 1 << 62}
 	workspace, err := os.MkdirTemp(workspaceRoot, "upgraderail-job-*")
 	if err != nil {
 		return fail(fmt.Errorf("create job workspace: %w", err))
 	}
 	defer os.RemoveAll(workspace)
+
+	current, err := materialize(artifacts, job.CurrentKey, filepath.Join(workspace, "current.wasm"))
+	if err != nil {
+		return fail(fmt.Errorf("read current artifact: %w", err))
+	}
+	candidate, err := materialize(artifacts, job.CandidateKey, filepath.Join(workspace, "candidate.wasm"))
+	if err != nil {
+		return fail(fmt.Errorf("read candidate artifact: %w", err))
+	}
+
 	version, err := runner.Version(ctx, workspace)
 	if err != nil {
 		return fail(err)
@@ -51,13 +58,23 @@ func RunOne(ctx context.Context, store *Store, runner engine.Runner, artifactRoo
 	return true, nil
 }
 
-func artifactPath(root, key string) (string, error) {
-	if !filepath.IsAbs(root) {
-		return "", errors.New("artifact root must be absolute")
+// materialize copies an artifact's stored bytes to an absolute path inside
+// the job workspace so the Engine binary (which takes file paths, not
+// readers) can read it. A missing or unreadable artifact becomes a clear
+// failure, not a crash.
+func materialize(artifacts artifactstore.Filesystem, key, destination string) (string, error) {
+	source, err := artifacts.Open(key)
+	if err != nil {
+		return "", err
 	}
-	cleaned := filepath.Clean(key)
-	if filepath.IsAbs(cleaned) || cleaned == ".." || strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) {
-		return "", errors.New("artifact storage key is invalid")
+	defer source.Close()
+	destinationFile, err := os.OpenFile(destination, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0600)
+	if err != nil {
+		return "", fmt.Errorf("create workspace artifact copy: %w", err)
 	}
-	return filepath.Join(root, cleaned), nil
+	defer destinationFile.Close()
+	if _, err := io.Copy(destinationFile, source); err != nil {
+		return "", fmt.Errorf("copy artifact into workspace: %w", err)
+	}
+	return destination, nil
 }

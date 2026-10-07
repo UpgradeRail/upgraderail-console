@@ -3,5 +3,6 @@ go 1.25.1
 use (
   ./services/api
   ./services/indexer
+  ./services/shared/artifactstore
   ./services/worker
 )

@@ -149,7 +149,10 @@ func TestRunOneWithRealEngineRecordsFailureReason(t *testing.T) {
 	if status != "failed" {
 		t.Fatalf("expected failed job, got %q", status)
 	}
-	if !strings.Contains(message, "engine") || !strings.Contains(message, "missing.wasm") {
+	// The missing artifact is caught while materializing it into the job
+	// workspace, before the Engine binary is ever invoked, so the failure
+	// reason names the artifact rather than describing an engine failure.
+	if !strings.Contains(message, "artifact") || !strings.Contains(message, "missing.wasm") {
 		t.Fatalf("failure reason was not useful: %q", message)
 	}
 }
