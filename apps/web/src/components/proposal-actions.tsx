@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { GovernanceActionPanel } from "./governance-action-panel";
 import { api, ApiError } from "@/lib/api";
-import { buildApprove, buildRevokeApproval, defaultRpc, readLiveProposal, type LiveProposal } from "@/lib/governance-tx";
+import { buildApprove, buildCancelProposal, buildExecuteProposal, buildRevokeApproval, defaultRpc, readLiveProposal, type LiveProposal } from "@/lib/governance-tx";
 import { describeLifecycle, type ActionAvailability } from "@/lib/proposal-lifecycle";
 
 type Session = { address: string; network: string };
@@ -73,6 +73,26 @@ export function ProposalActions({ proposalId, onChanged }: { proposalId: number 
         confirmLabel="Submit revocation to Testnet"
         disabledReason={reasonOf(lifecycle.actions.revoke)}
         build={(address) => buildRevokeApproval(address, id)}
+        onConfirmed={afterConfirmed}
+      />
+      <GovernanceActionPanel
+        title="Execute proposal"
+        description="Applies the approved change on-chain. The contract only accepts this once the threshold is met and the timelock has elapsed, and it rechecks the expected current WASM at execution."
+        action="execute_proposal"
+        details={[["Proposal", `#${id}`], ["Executor", live.address]]}
+        confirmLabel="Submit execution to Testnet"
+        disabledReason={reasonOf(lifecycle.actions.execute)}
+        build={(address) => buildExecuteProposal(address, id)}
+        onConfirmed={afterConfirmed}
+      />
+      <GovernanceActionPanel
+        title="Cancel proposal"
+        description="Only the proposer can cancel, and only before the approval threshold is reached."
+        action="cancel_proposal"
+        details={[["Proposal", `#${id}`], ["Proposer", live.live.proposer]]}
+        confirmLabel="Submit cancellation to Testnet"
+        disabledReason={reasonOf(lifecycle.actions.cancel)}
+        build={(address) => buildCancelProposal(address, id)}
         onConfirmed={afterConfirmed}
       />
     </div>
