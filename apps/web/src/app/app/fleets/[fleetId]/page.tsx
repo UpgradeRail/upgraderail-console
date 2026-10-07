@@ -41,13 +41,11 @@ export default function FleetDetailPage({
   const unwrappedParams = params ? use(params) : undefined;
   const fleetId = directFleetId ?? unwrappedParams?.fleetId ?? "";
 
-  const [state, setState] = useState<State>({ kind: "loading" });
+  const [fetched, setState] = useState<State>({ kind: "loading" });
+  const state: State = fleetId ? fetched : { kind: "not_found" };
 
   useEffect(() => {
-    if (!fleetId) {
-      setState({ kind: "not_found" });
-      return;
-    }
+    if (!fleetId) return;
 
     let active = true;
 

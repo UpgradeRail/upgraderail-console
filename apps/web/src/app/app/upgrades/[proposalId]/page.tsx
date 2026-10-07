@@ -46,13 +46,11 @@ export default function ProposalDetailPage({
   const unwrappedParams = params ? use(params) : undefined;
   const proposalId = directProposalId ?? unwrappedParams?.proposalId ?? "";
 
-  const [state, setState] = useState<State>({ kind: "loading" });
+  const [fetched, setState] = useState<State>({ kind: "loading" });
+  const state: State = proposalId ? fetched : { kind: "not_found" };
 
   useEffect(() => {
-    if (!proposalId) {
-      setState({ kind: "not_found" });
-      return;
-    }
+    if (!proposalId) return;
 
     let active = true;
 
