@@ -1,3 +1,4 @@
+import { DiffView } from "./diff-view";
 import {
   STORAGE_LIMITATION,
   countBySeverity,
@@ -69,6 +70,8 @@ export function PreflightView({
         </dl>
         <p className="data-note">{STORAGE_LIMITATION}</p>
       </section>
+
+      <DiffView findings={findings} />
 
       <section>
         <span className="eyebrow">FINDINGS</span>
