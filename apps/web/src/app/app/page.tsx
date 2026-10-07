@@ -51,11 +51,19 @@ interface FleetUpgrade {
   transaction_hash: string;
 }
 
+interface AnalysisSummary {
+  id: string;
+  status: string;
+  network: string;
+  created_at: string;
+}
+
 interface DashboardData {
   controllers: Controller[];
   fleets: Fleet[];
   proposals: Proposal[];
   upgrades: FleetUpgrade[];
+  analyses: AnalysisSummary[];
 }
 
 type State =
@@ -71,17 +79,18 @@ export default function ConsolePage() {
 
     async function load() {
       try {
-        const [controllers, fleets, proposals, upgrades] = await Promise.all([
-          api<Controller[]>("/api/v1/controllers").catch(() => [] as Controller[]),
-          api<Fleet[]>("/api/v1/fleets").catch(() => [] as Fleet[]),
-          api<Proposal[]>("/api/v1/proposals").catch(() => [] as Proposal[]),
-          api<FleetUpgrade[]>("/api/v1/upgrades").catch(() => [] as FleetUpgrade[]),
+        const [controllers, fleets, proposals, upgrades, analyses] = await Promise.all([
+          api<Controller[]>("/api/v1/controllers"),
+          api<Fleet[]>("/api/v1/fleets"),
+          api<Proposal[]>("/api/v1/proposals"),
+          api<FleetUpgrade[]>("/api/v1/upgrades"),
+          api<AnalysisSummary[]>("/api/v1/analyses?limit=5"),
         ]);
 
         if (active) {
           setState({
             kind: "ready",
-            data: { controllers, fleets, proposals, upgrades },
+            data: { controllers, fleets, proposals, upgrades, analyses },
           });
         }
       } catch (err) {
@@ -311,6 +320,39 @@ export default function ConsolePage() {
                         <td title={upgrade.new_wasm_hash}>{upgrade.new_wasm_hash}</td>
                         <td title={upgrade.manifest_hash}>{upgrade.manifest_hash}</td>
                         <td title={upgrade.transaction_hash}>{upgrade.transaction_hash}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Latest analyses */}
+          <div>
+            <span className="eyebrow">PREFLIGHT</span>
+            <h2 style={{ margin: "4px 0 16px", fontSize: "24px" }}>
+              Latest Analysis Jobs ({state.data.analyses.length})
+            </h2>
+            {state.data.analyses.length === 0 ? (
+              <section className="empty-state">
+                <span className="eyebrow">EMPTY</span>
+                <h2>No analysis jobs</h2>
+                <p>No Engine comparison jobs have been created yet.</p>
+              </section>
+            ) : (
+              <div className="data-table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>Analysis</th><th>Status</th><th>Network</th><th>Created</th></tr>
+                  </thead>
+                  <tbody>
+                    {state.data.analyses.map((a) => (
+                      <tr key={a.id}>
+                        <td><Link className="text-link" href={`/app/analyses/${encodeURIComponent(a.id)}`}>{a.id}</Link></td>
+                        <td>{a.status}</td>
+                        <td>{a.network}</td>
+                        <td>{a.created_at}</td>
                       </tr>
                     ))}
                   </tbody>
