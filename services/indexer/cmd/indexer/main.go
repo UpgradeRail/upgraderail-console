@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/UpgradeRail/upgraderail-console/services/indexer/internal/projection"
+	"github.com/UpgradeRail/upgraderail-console/services/indexer/internal/reconcile"
 	indexerrpc "github.com/UpgradeRail/upgraderail-console/services/indexer/internal/rpc"
 	"github.com/UpgradeRail/upgraderail-console/services/indexer/internal/store"
 )
@@ -110,6 +111,19 @@ func run(ctx context.Context) error {
 				return err
 			}
 			slog.Warn("stellar rpc temporarily unavailable; retrying", "service", "indexer", "error", redact(err.Error()))
+		}
+		// Reconciliation is a side process, not part of the event-journal
+		// checkpoint machinery: it runs after each poll cycle (which also
+		// covers backfilling proposals left over from before this feature
+		// existed), is bounded, and never advances or blocks on the
+		// checkpoint above. A failure here is logged and retried on a later
+		// iteration, never fatal to the indexer.
+		if ctx.Err() == nil {
+			if count, err := reconcile.Run(ctx, db, client, controllerID, c.passphrase, reconcile.DefaultBatchSize); err != nil {
+				slog.Warn("proposal reconciliation pass failed", "service", "indexer", "error", redact(err.Error()))
+			} else if count > 0 {
+				slog.Info("reconciled proposals", "service", "indexer", "count", count)
+			}
 		}
 		timer := time.NewTimer(c.pollInterval)
 		select {

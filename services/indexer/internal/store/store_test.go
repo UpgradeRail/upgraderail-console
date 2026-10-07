@@ -324,3 +324,84 @@ func TestReconcileProposal(t *testing.T) {
 		t.Fatalf("reconciled proposal mismatch: kind=%v manifest=%v", kind, manifestHash)
 	}
 }
+
+func TestProposalsNeedingReconciliationExcludesReconciledAndBoundsBatch(t *testing.T) {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("DATABASE_URL is required")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	store, err := Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	networkID, controllerID := seedController(t, ctx, store, "needs-reconcile")
+
+	events := []projection.Event{
+		event(networkID, projection.ProposalCreated, `{"proposal_id":1,"proposer":"GABC","governance_epoch":1,"expires_ledger":1000}`, 0),
+		event(networkID, projection.ProposalCreated, `{"proposal_id":2,"proposer":"GABC","governance_epoch":1,"expires_ledger":1000}`, 1),
+		event(networkID, projection.ProposalCreated, `{"proposal_id":3,"proposer":"GABC","governance_epoch":1,"expires_ledger":1000}`, 2),
+	}
+	if _, err := store.ApplyControllerBatch(ctx, projection.NewState(), controllerID, events, "cursor-needs-1"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Reconciling proposal 1 removes it from the pending list.
+	kind := "CreateFleet"
+	if err := store.ReconcileProposal(ctx, controllerID, 1, &kind, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	pending, err := store.ProposalsNeedingReconciliation(ctx, controllerID, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pending) != 1 {
+		t.Fatalf("expected the batch limit to bound the result to 1, got %d", len(pending))
+	}
+	if pending[0].ProposalID != 2 {
+		t.Fatalf("expected proposal 2 (the lowest unreconciled id), got %d", pending[0].ProposalID)
+	}
+
+	pending, err = store.ProposalsNeedingReconciliation(ctx, controllerID, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pending) != 2 {
+		t.Fatalf("expected proposals 2 and 3 still pending, got %d", len(pending))
+	}
+
+	// A transient failure leaves the proposal pending for retry.
+	if err := store.RecordReconciliationFailure(ctx, controllerID, 2, "rpc unavailable", false); err != nil {
+		t.Fatal(err)
+	}
+	pending, err = store.ProposalsNeedingReconciliation(ctx, controllerID, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pending) != 2 {
+		t.Fatalf("expected a transient failure to leave the proposal pending, got %d pending", len(pending))
+	}
+
+	// A permanent failure removes the proposal from the pending list.
+	if err := store.RecordReconciliationFailure(ctx, controllerID, 3, "contract rejected the call", true); err != nil {
+		t.Fatal(err)
+	}
+	pending, err = store.ProposalsNeedingReconciliation(ctx, controllerID, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pending) != 1 || pending[0].ProposalID != 2 {
+		t.Fatalf("expected a permanent failure to stop retrying proposal 3, got %#v", pending)
+	}
+
+	var reconciliationError *string
+	if err := store.pool.QueryRow(ctx, `SELECT reconciliation_error FROM proposals WHERE controller_id = $1 AND proposal_id = 3`, controllerID).Scan(&reconciliationError); err != nil {
+		t.Fatal(err)
+	}
+	if reconciliationError == nil || *reconciliationError != "contract rejected the call" {
+		t.Fatalf("expected the permanent failure message to be recorded, got %v", reconciliationError)
+	}
+}

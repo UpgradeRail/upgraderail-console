@@ -179,6 +179,8 @@ func applyReadModel(ctx context.Context, tx pgx.Tx, controllerID string, event p
 				UPDATE proposals
 				SET kind = COALESCE(kind, 'CreateFleet'),
 				    manifest_hash = COALESCE(manifest_hash, NULLIF($3, '')),
+				    reconciled_at = COALESCE(reconciled_at, now()),
+				    reconciliation_error = NULL,
 				    updated_at = now()
 				WHERE controller_id = $1 AND proposal_id = $2
 			`, controllerID, int64(value.ProposalID), value.ManifestHash)
@@ -223,6 +225,8 @@ func applyReadModel(ctx context.Context, tx pgx.Tx, controllerID string, event p
 				UPDATE proposals
 				SET kind = COALESCE(kind, 'UpgradeFleet'),
 				    manifest_hash = COALESCE(manifest_hash, NULLIF($3, '')),
+				    reconciled_at = COALESCE(reconciled_at, now()),
+				    reconciliation_error = NULL,
 				    updated_at = now()
 				WHERE controller_id = $1 AND proposal_id = $2
 			`, controllerID, int64(value.ProposalID), value.ManifestHash)
@@ -250,6 +254,8 @@ func applyReadModel(ctx context.Context, tx pgx.Tx, controllerID string, event p
 			_, err = tx.Exec(ctx, `
 				UPDATE proposals
 				SET kind = COALESCE(kind, 'UpdatePolicy'),
+				    reconciled_at = COALESCE(reconciled_at, now()),
+				    reconciliation_error = NULL,
 				    updated_at = now()
 				WHERE controller_id = $1 AND proposal_id = $2
 			`, controllerID, int64(value.ProposalID))
@@ -280,6 +286,8 @@ func applyReadModel(ctx context.Context, tx pgx.Tx, controllerID string, event p
 				UPDATE proposals
 				SET kind = COALESCE(kind, 'UpgradeController'),
 				    manifest_hash = COALESCE(manifest_hash, NULLIF($3, '')),
+				    reconciled_at = COALESCE(reconciled_at, now()),
+				    reconciliation_error = NULL,
 				    updated_at = now()
 				WHERE controller_id = $1 AND proposal_id = $2
 			`, controllerID, int64(value.ProposalID), value.ManifestHash)
@@ -326,13 +334,22 @@ func approvalRowID(proposalRowID, approver string) string {
 
 // ReconcileProposal updates an indexed proposal's kind and manifest_hash from a
 // verified read-only contract call (such as UpgradeController.get_proposal) or
-// authenticated manifest storage linkage.
-// It is idempotent and performs no chain mutation.
+// authenticated manifest storage linkage, and marks it reconciled so it is not
+// re-selected by ProposalsNeedingReconciliation. It is idempotent and performs
+// no chain mutation.
+//
+// kind/manifestHash being nil is "the contract read did not provide this
+// field" (e.g. an UpdatePolicy proposal has no manifest_hash); it leaves the
+// existing column value untouched rather than clobbering it with NULL, and it
+// is not an error — call RecordReconciliationFailure instead when the read
+// itself failed.
 func (s *Store) ReconcileProposal(ctx context.Context, controllerID string, proposalID uint64, kind *string, manifestHash *string) error {
 	tag, err := s.pool.Exec(ctx, `
 		UPDATE proposals
 		SET kind = COALESCE($3, kind),
 		    manifest_hash = COALESCE($4, manifest_hash),
+		    reconciled_at = now(),
+		    reconciliation_error = NULL,
 		    updated_at = now()
 		WHERE controller_id = $1 AND proposal_id = $2
 	`, controllerID, int64(proposalID), kind, manifestHash)
@@ -341,6 +358,73 @@ func (s *Store) ReconcileProposal(ctx context.Context, controllerID string, prop
 	}
 	if tag.RowsAffected() == 0 {
 		return fmt.Errorf("proposal %d not found for reconciliation", proposalID)
+	}
+	return nil
+}
+
+// ProposalToReconcile identifies one proposal row that ProposalsNeedingReconciliation
+// selected as not yet successfully reconciled.
+type ProposalToReconcile struct {
+	ProposalID uint64
+}
+
+// ProposalsNeedingReconciliation returns up to limit proposals for controllerID
+// that have never been successfully reconciled: either never attempted, or
+// their last attempt hit a retryable (transient RPC) failure. A proposal whose
+// last attempt hit a non-retryable error is marked reconciled_at by
+// RecordReconciliationFailure's permanent flag and so will not reappear here;
+// this keeps one bad proposal from being retried forever while still letting
+// transient failures retry on a later indexer loop iteration. The limit bounds
+// the batch so a large backlog cannot be reconciled in a single pass.
+func (s *Store) ProposalsNeedingReconciliation(ctx context.Context, controllerID string, limit int) ([]ProposalToReconcile, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT proposal_id FROM proposals
+		WHERE controller_id = $1 AND reconciled_at IS NULL
+		ORDER BY proposal_id ASC
+		LIMIT $2
+	`, controllerID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list proposals needing reconciliation: %w", err)
+	}
+	defer rows.Close()
+	var result []ProposalToReconcile
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan proposal needing reconciliation: %w", err)
+		}
+		result = append(result, ProposalToReconcile{ProposalID: uint64(id)})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read proposals needing reconciliation: %w", err)
+	}
+	return result, nil
+}
+
+// RecordReconciliationFailure records a failed reconciliation attempt's error
+// message. When permanent is true (the failure was not a transient RPC
+// problem — e.g. the contract rejected the call, or the response could not be
+// decoded), reconciled_at is also set so the proposal is not retried forever;
+// a transient failure leaves reconciled_at NULL so the next indexer loop
+// iteration retries it.
+func (s *Store) RecordReconciliationFailure(ctx context.Context, controllerID string, proposalID uint64, message string, permanent bool) error {
+	var err error
+	if permanent {
+		_, err = s.pool.Exec(ctx, `
+			UPDATE proposals SET reconciliation_error = $3, reconciled_at = now()
+			WHERE controller_id = $1 AND proposal_id = $2
+		`, controllerID, int64(proposalID), message)
+	} else {
+		_, err = s.pool.Exec(ctx, `
+			UPDATE proposals SET reconciliation_error = $3
+			WHERE controller_id = $1 AND proposal_id = $2
+		`, controllerID, int64(proposalID), message)
+	}
+	if err != nil {
+		return fmt.Errorf("record reconciliation failure: %w", err)
 	}
 	return nil
 }
