@@ -386,3 +386,82 @@ export async function buildRevokeApproval(
     builtAt: Date.now(),
   };
 }
+
+async function buildSimulatedGovernanceTx(
+  action: UnsignedGovernanceTx["action"],
+  label: string,
+  address: string,
+  args: Record<string, unknown>,
+  server: rpc.Server
+): Promise<UnsignedGovernanceTx> {
+  const { account, contractId, networkPassphrase, snapshot } =
+    await readLiveGovernanceState(server, address);
+
+  const scVals = controllerSpec.funcArgsToScVals(action, args);
+  const unsigned = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase,
+  })
+    .addOperation(new Contract(contractId).call(action, ...scVals))
+    .setTimeout(300)
+    .build();
+
+  const simulation = await server.simulateTransaction(unsigned);
+  if (!rpc.Api.isSimulationSuccess(simulation) || !simulation.result) {
+    throw new Error(
+      `${label} simulation failed: ${
+        "error" in simulation ? simulation.error : "no result returned"
+      }`
+    );
+  }
+
+  const prepared = rpc.assembleTransaction(unsigned, simulation).build();
+  return {
+    action,
+    address,
+    contractId,
+    networkPassphrase,
+    rpcUrl: server.serverURL.toString(),
+    unsignedXdr: prepared.toXDR(),
+    transactionHash: toHex(prepared.hash()),
+    feeStroops: prepared.fee,
+    snapshot,
+    builtAt: Date.now(),
+  };
+}
+
+/**
+ * Builds an unsigned cancel_proposal transaction. The contract rejects
+ * cancellation by anyone other than the proposer; simulation surfaces that.
+ */
+export function buildCancelProposal(
+  proposerAddress: string,
+  proposalId: bigint | number | string,
+  server = defaultRpc()
+): Promise<UnsignedGovernanceTx> {
+  return buildSimulatedGovernanceTx(
+    "cancel_proposal",
+    "Cancel proposal",
+    proposerAddress,
+    { proposal_id: BigInt(proposalId), proposer: proposerAddress },
+    server
+  );
+}
+
+/**
+ * Builds an unsigned execute_proposal transaction. Simulation fails with the
+ * contract error while the proposal is still timelocked, stale, or expired.
+ */
+export function buildExecuteProposal(
+  executorAddress: string,
+  proposalId: bigint | number | string,
+  server = defaultRpc()
+): Promise<UnsignedGovernanceTx> {
+  return buildSimulatedGovernanceTx(
+    "execute_proposal",
+    "Execute proposal",
+    executorAddress,
+    { proposal_id: BigInt(proposalId) },
+    server
+  );
+}
