@@ -135,6 +135,16 @@ func decodeJSONObject(t *testing.T, response *http.Response) map[string]any {
 	return value
 }
 
+// contractFixtureDir locates the upgraderail-contracts WASM fixtures:
+// UPGRADERAIL_CONTRACT_FIXTURE_DIR if set (the same variable the worker
+// tests use), otherwise the sibling checkout next to this repository.
+func contractFixtureDir() string {
+	if dir := os.Getenv("UPGRADERAIL_CONTRACT_FIXTURE_DIR"); dir != "" {
+		return dir
+	}
+	return filepath.Join("..", "..", "..", "..", "..", "upgraderail-contracts", "fixtures", "wasm")
+}
+
 // uniqueFixture reads a real upgraderail-contracts WASM fixture and
 // appends a tag unique to this test run. Artifacts are deduplicated by
 // content hash, and the test database is shared across test runs and
@@ -143,9 +153,9 @@ func decodeJSONObject(t *testing.T, response *http.Response) map[string]any {
 // fixture's exact bytes risks silently reading back a stale row left by
 // an unrelated test. The upload endpoint only checks the leading magic
 // bytes, so an appended tag is still exercised as a realistic upload.
-func uniqueFixture(t *testing.T, path, tag string) ([]byte, error) {
+func uniqueFixture(t *testing.T, name, tag string) ([]byte, error) {
 	t.Helper()
-	base, err := os.ReadFile(path)
+	base, err := os.ReadFile(filepath.Join(contractFixtureDir(), name))
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +165,7 @@ func uniqueFixture(t *testing.T, path, tag string) ([]byte, error) {
 
 func TestUploadArtifactStoresRealHashAndMetadata(t *testing.T) {
 	env := newArtifactTestEnv(t)
-	fixture, err := uniqueFixture(t, "/home/gamp/upgraderail-contracts/fixtures/wasm/fleet_v1.wasm", "metadata")
+	fixture, err := uniqueFixture(t, "fleet_v1.wasm", "metadata")
 	if err != nil {
 		t.Skipf("upgraderail-contracts WASM fixture not available: %v", err)
 	}
@@ -260,11 +270,11 @@ func TestCreateAnalysisRejectsUnknownArtifacts(t *testing.T) {
 
 func TestCreateAnalysisAcceptsUploadedArtifacts(t *testing.T) {
 	env := newArtifactTestEnv(t)
-	current, err := uniqueFixture(t, "/home/gamp/upgraderail-contracts/fixtures/wasm/fleet_v1.wasm", "current")
+	current, err := uniqueFixture(t, "fleet_v1.wasm", "current")
 	if err != nil {
 		t.Skipf("upgraderail-contracts WASM fixture not available: %v", err)
 	}
-	candidate, err := uniqueFixture(t, "/home/gamp/upgraderail-contracts/fixtures/wasm/fleet_v2_compatible.wasm", "candidate")
+	candidate, err := uniqueFixture(t, "fleet_v2_compatible.wasm", "candidate")
 	if err != nil {
 		t.Skipf("upgraderail-contracts WASM fixture not available: %v", err)
 	}
