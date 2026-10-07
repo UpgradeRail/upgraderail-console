@@ -2,9 +2,10 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
+import { CreateProposalPanel } from "@/components/create-proposal-panel";
 import { PreflightView } from "@/components/preflight-view";
 import { api, ApiError } from "@/lib/api";
-import type { AnalysisJob, AnalysisReportRecord, ManifestRecord } from "@/lib/analysis";
+import { proposalReadiness, type AnalysisJob, type AnalysisReportRecord, type ManifestRecord } from "@/lib/analysis";
 
 type State =
   | { kind: "loading" }
@@ -68,7 +69,26 @@ export default function AnalysisDetailPage({
       {state.kind === "loading" && <section className="empty-state"><span className="eyebrow">LOADING</span><h2>Reading analysis</h2><p>Querying the Console API for the job, report, and manifest.</p></section>}
       {state.kind === "not_found" && <section className="empty-state"><span className="eyebrow">NOT FOUND</span><h2>Analysis not found</h2><p>No analysis matches: {analysisId || "unspecified"}</p><Link href="/app/analyses" className="text-link">Return to analyses</Link></section>}
       {state.kind === "error" && <section className="empty-state"><span className="eyebrow">ERROR</span><h2>Failed to load analysis</h2><p>{state.message}</p></section>}
-      {state.kind === "ready" && <PreflightView job={state.job} report={state.report} manifest={state.manifest} />}
+      {state.kind === "ready" && (
+        <PreflightView job={state.job} report={state.report} manifest={state.manifest}>
+          <ProposalSection job={state.job} report={state.report} manifest={state.manifest} />
+        </PreflightView>
+      )}
+    </section>
+  );
+}
+
+function ProposalSection({ job, report, manifest }: { job: AnalysisJob; report: AnalysisReportRecord | null; manifest: ManifestRecord | null }) {
+  const readiness = proposalReadiness(job, report, manifest);
+  return (
+    <section>
+      <span className="eyebrow">GOVERNANCE</span>
+      <h2 style={{ margin: "4px 0 16px", fontSize: "24px" }}>Propose this upgrade</h2>
+      {readiness.ok && report && manifest ? (
+        <CreateProposalPanel report={report} manifest={manifest} />
+      ) : (
+        <section className="empty-state"><span className="eyebrow">NOT AVAILABLE</span><h2>This analysis cannot be proposed</h2><p>{readiness.ok ? "Missing report or manifest." : readiness.reason}</p></section>
+      )}
     </section>
   );
 }
