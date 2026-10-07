@@ -9,3 +9,5 @@ test-results/
 tmp/
 *.log
 *.tsbuildinfo
+.vercel
+.env*
