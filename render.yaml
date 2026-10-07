@@ -1,0 +1,92 @@
+# Render Blueprint for the UpgradeRail Console staging backend (Stellar Testnet).
+# Secret values are never committed: `sync: false` makes Render prompt for them.
+# The web console stays on Vercel (https://upgraderail-console.vercel.app).
+services:
+  - type: web
+    name: upgraderail-api
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./services/api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health/ready
+    autoDeployTrigger: "off"
+    envVars:
+      - key: API_ADDR
+        value: ":10000"
+      - key: DATABASE_URL
+        sync: false
+      - key: WEB_ORIGIN
+        value: https://upgraderail-console.vercel.app
+      - key: AUTH_DOMAIN
+        value: upgraderail-console.vercel.app
+      - key: ARTIFACT_BACKEND
+        value: s3
+      - key: ARTIFACT_S3_ENDPOINT
+        value: https://drkywpdasiaqsnhphufq.storage.supabase.co/storage/v1/s3
+      - key: ARTIFACT_S3_REGION
+        value: eu-west-1
+      - key: ARTIFACT_S3_BUCKET
+        value: upgraderail-artifacts
+      - key: ARTIFACT_S3_ACCESS_KEY_ID
+        sync: false
+      - key: ARTIFACT_S3_SECRET_ACCESS_KEY
+        sync: false
+
+  # The indexer and worker are long-running loops, not request handlers. They
+  # run as free web services only because the free tier has no background
+  # workers; each exposes GET /health/live on PORT so an external monitor can
+  # keep it awake (free services sleep after 15 minutes without inbound traffic).
+  - type: web
+    name: upgraderail-indexer
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./services/indexer/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health/live
+    autoDeployTrigger: "off"
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: DATABASE_URL
+        sync: false
+      - key: STELLAR_NETWORK
+        value: testnet
+      - key: STELLAR_NETWORK_PASSPHRASE
+        value: Test SDF Network ; September 2015
+      - key: STELLAR_RPC_URL
+        value: https://soroban-testnet.stellar.org
+      - key: UPGRADERAIL_CONTROLLER_ID
+        value: CAJX4YE77N23K53MNJHYMCZIFXGMUEHSNZPHXAHDVZU5IYXUK4OQXTWS
+      - key: UPGRADERAIL_START_LEDGER
+        value: "4969430"
+      - key: INDEXER_POLL_INTERVAL
+        value: 10s
+
+  - type: web
+    name: upgraderail-worker
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./services/worker/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health/live
+    autoDeployTrigger: "off"
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: DATABASE_URL
+        sync: false
+      - key: ARTIFACT_BACKEND
+        value: s3
+      - key: ARTIFACT_S3_ENDPOINT
+        value: https://drkywpdasiaqsnhphufq.storage.supabase.co/storage/v1/s3
+      - key: ARTIFACT_S3_REGION
+        value: eu-west-1
+      - key: ARTIFACT_S3_BUCKET
+        value: upgraderail-artifacts
+      - key: ARTIFACT_S3_ACCESS_KEY_ID
+        sync: false
+      - key: ARTIFACT_S3_SECRET_ACCESS_KEY
+        sync: false
