@@ -29,9 +29,13 @@ type Fleet struct {
 }
 
 // Kind and ManifestHash are nullable: the proposal_created event does not
-// carry the ProposalKind variant or its manifest hash, so until the indexer
-// adds read-only contract reconciliation these stay null rather than being
-// fabricated (see docs/limitations.md).
+// carry the ProposalKind variant or its manifest hash. The indexer's
+// reconciliation pass (services/indexer/internal/reconcile) fills these in
+// from the live UpgradeController contract once it can, but a proposal can
+// still read as null here — briefly, before its first reconciliation pass
+// runs, or permanently for a field the contract genuinely does not expose
+// (an UpdatePolicy proposal has no manifest_hash at all). Never fabricated
+// (see docs/limitations.md).
 type Proposal struct {
 	ID                     string  `json:"id"`
 	ControllerID           string  `json:"controller_id"`
