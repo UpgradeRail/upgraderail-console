@@ -75,3 +75,15 @@ test("API failure shows an error state rather than empty data", async ({ page })
   await page.goto("/app/upgrades/history");
   await expect(page.getByRole("heading", { name: "Upgrade history could not be loaded" })).toBeVisible();
 });
+
+test("overview surfaces a failing endpoint as an error, not as empty data", async ({ page }) => {
+  await mockApi(page, { "/api/v1/fleets": { status: 500, body: { error: { message: "fleets down" } } } });
+  await page.goto("/app");
+  await expect(page.getByRole("heading", { name: "Telemetry could not be loaded" })).toBeVisible();
+  await expect(page.getByText("No indexed fleets")).toHaveCount(0);
+});
+
+test("overview lists the latest analysis jobs", async ({ page }) => {
+  await page.goto("/app");
+  await expect(page.getByRole("link", { name: "an1" })).toBeVisible();
+});
