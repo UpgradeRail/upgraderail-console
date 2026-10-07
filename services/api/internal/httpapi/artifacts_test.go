@@ -19,6 +19,7 @@ import (
 	"github.com/UpgradeRail/upgraderail-console/services/api/internal/auth"
 	"github.com/UpgradeRail/upgraderail-console/services/api/internal/store"
 	"github.com/UpgradeRail/upgraderail-console/services/shared/artifactstore"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -289,8 +290,25 @@ func TestCreateAnalysisAcceptsUploadedArtifacts(t *testing.T) {
 
 	response := env.createAnalysis(t, currentID, candidateID)
 	defer response.Body.Close()
+	body := decodeJSONObject(t, response)
 	if response.StatusCode != http.StatusAccepted {
-		body := decodeJSONObject(t, response)
 		t.Fatalf("expected 202, got %d: %v", response.StatusCode, body)
+	}
+	// The test database is shared with the worker package, whose tests claim
+	// the oldest queued job. Remove the job this test queued so it cannot be
+	// claimed in place of a worker test's own job.
+	if jobID, _ := body["id"].(string); jobID != "" {
+		t.Cleanup(func() {
+			ctx := context.Background()
+			connection, err := pgx.Connect(ctx, os.Getenv("DATABASE_URL"))
+			if err != nil {
+				t.Errorf("connect for analysis job cleanup: %v", err)
+				return
+			}
+			defer connection.Close(ctx)
+			if _, err := connection.Exec(ctx, `DELETE FROM analysis_jobs WHERE id = $1`, jobID); err != nil {
+				t.Errorf("delete analysis job %s: %v", jobID, err)
+			}
+		})
 	}
 }
