@@ -129,6 +129,23 @@ func TestNormalizeRejectsUnknownControllerEvent(t *testing.T) {
 	}
 }
 
+func TestScValUnmarshalJSONAcceptsVoidSentinel(t *testing.T) {
+	var v scVal
+	if err := json.Unmarshal([]byte(`"void"`), &v); err != nil {
+		t.Fatal(err)
+	}
+	if len(v) != 0 {
+		t.Fatalf("expected an empty scVal for void, got %#v", v)
+	}
+}
+
+func TestScValUnmarshalJSONRejectsOtherBareScalars(t *testing.T) {
+	var v scVal
+	if err := json.Unmarshal([]byte(`"not-void"`), &v); err == nil {
+		t.Fatal("expected an error for an unrecognized bare scalar")
+	}
+}
+
 func TestFetchControllerEventsLive(t *testing.T) {
 	if os.Getenv("STELLAR_RPC_LIVE") != "1" {
 		t.Skip("STELLAR_RPC_LIVE=1 is required")

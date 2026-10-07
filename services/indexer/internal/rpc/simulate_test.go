@@ -58,6 +58,47 @@ const updatePolicyProposalJSON = `{"map":[
 	]}}
 ]}`
 
+// A freshly created, unapproved, unexecuted proposal: its Option<u32> fields
+// (approved_ledger, execute_after_ledger) are None, which stellar-rpc's
+// xdrFormat=json renders as the bare string "void" rather than a nested
+// {"type": ...} object. Only ever observed live once a real browser-driven
+// create_proposal call produced a brand-new Active CreateFleet proposal
+// (earlier fixtures above all modeled already-executed proposals, where
+// those fields are Some and this shape never appeared).
+const freshActiveCreateFleetProposalJSON = `{"map":[
+	{"key":{"symbol":"approval_count"},"val":{"u32":0}},
+	{"key":{"symbol":"approved_ledger"},"val":"void"},
+	{"key":{"symbol":"created_ledger"},"val":{"u32":5072636}},
+	{"key":{"symbol":"execute_after_ledger"},"val":"void"},
+	{"key":{"symbol":"expires_ledger"},"val":{"u32":5072836}},
+	{"key":{"symbol":"governance_epoch"},"val":{"u64":"1"}},
+	{"key":{"symbol":"id"},"val":{"u64":"1"}},
+	{"key":{"symbol":"kind"},"val":{"vec":[
+		{"symbol":"CreateFleet"},
+		{"map":[
+			{"key":{"symbol":"fleet_id"},"val":{"bytes":"e32a3e2cd34f2702123971fb4bc0764faaf79d8ba4e023635b20b43cb54ab845"}},
+			{"key":{"symbol":"initial_wasm_hash"},"val":{"bytes":"a59283a3427b9355b6602c6b611508e0264a1c353b82a51c9883ab37f282bfaa"}},
+			{"key":{"symbol":"manifest_hash"},"val":{"bytes":"6bb50a8f0eb7b246a8a93dcb35471eb9b0279b29ba667ed009acb580fd7542cc"}},
+			{"key":{"symbol":"tag"},"val":{"string":"freighter-verify-2026-10-07"}}
+		]}
+	]}},
+	{"key":{"symbol":"proposer"},"val":{"address":"GAH42JRVEHJVL4LYKLIA7G52MX4AUP3DORK6DZGH52VOCYV2QJFUY4ZV"}},
+	{"key":{"symbol":"status"},"val":{"vec":[{"symbol":"Active"}]}}
+]}`
+
+func TestDecodeGetProposalResultToleratesVoidOptionFields(t *testing.T) {
+	result, err := decodeGetProposalResult(json.RawMessage(freshActiveCreateFleetProposalJSON))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Kind != "CreateFleet" {
+		t.Fatalf("expected kind CreateFleet, got %q", result.Kind)
+	}
+	if result.ManifestHash == nil || *result.ManifestHash != "6bb50a8f0eb7b246a8a93dcb35471eb9b0279b29ba667ed009acb580fd7542cc" {
+		t.Fatalf("unexpected manifest hash %v", result.ManifestHash)
+	}
+}
+
 func TestDecodeGetProposalResultCreateFleet(t *testing.T) {
 	result, err := decodeGetProposalResult(json.RawMessage(createFleetProposalJSON))
 	if err != nil {

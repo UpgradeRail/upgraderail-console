@@ -214,6 +214,29 @@ type rawEvent struct {
 
 type scVal map[string]json.RawMessage
 
+// UnmarshalJSON accepts the normal {"type": ...} object shape, and also the
+// JSON-XDR rendering of ScValTypeScvVoid as the bare string "void" (seen, for
+// example, in an Option<u32> field that is None, such as a fresh Proposal's
+// unset approved_ledger/execute_after_ledger). A void value decodes to an
+// empty scVal; callers that need a specific field still fail if it is
+// missing, so this does not hide a genuinely absent required field.
+func (v *scVal) UnmarshalJSON(raw []byte) error {
+	var asString string
+	if err := json.Unmarshal(raw, &asString); err == nil {
+		if asString != "void" {
+			return fmt.Errorf("unexpected scalar scVal %q", asString)
+		}
+		*v = scVal{}
+		return nil
+	}
+	var asMap map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &asMap); err != nil {
+		return err
+	}
+	*v = asMap
+	return nil
+}
+
 func normalize(network string, event rawEvent) (projection.Event, error) {
 	if len(event.TopicJSON) == 0 {
 		return projection.Event{}, errors.New("event topic is required")
