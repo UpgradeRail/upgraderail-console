@@ -510,6 +510,18 @@ function num(value: unknown, label: string): number {
   return n;
 }
 
+/** Spec decoding wraps Result<T, E> returns as {value: T} (Ok) or {error: E} (Err). */
+export function unwrapResult(method: string, native: unknown): unknown {
+  if (native && typeof native === "object" && !Array.isArray(native)) {
+    const keys = Object.keys(native);
+    if (keys.length === 1 && keys[0] === "value") return (native as { value: unknown }).value;
+    if (keys.length === 1 && keys[0] === "error") {
+      throw new Error(`Live controller ${method} returned a contract error: ${JSON.stringify((native as { error: unknown }).error, (_k, v) => (typeof v === "bigint" ? String(v) : v))}`);
+    }
+  }
+  return native;
+}
+
 async function simulateNative(
   server: rpc.Server,
   source: Account,
@@ -527,7 +539,7 @@ async function simulateNative(
   if (!rpc.Api.isSimulationSuccess(result) || !result.result) {
     throw new Error(`Live controller ${method} failed: ${"error" in result ? result.error : "no result returned"}`);
   }
-  return controllerSpec.funcResToNative(method, result.result.retval);
+  return unwrapResult(method, controllerSpec.funcResToNative(method, result.result.retval));
 }
 
 /**
