@@ -228,3 +228,68 @@ func getJSONArray(t *testing.T, client *http.Client, url string) []map[string]an
 	}
 	return value
 }
+
+func TestAnalysisEndpointsServeSnakeCaseJSON(t *testing.T) {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("DATABASE_URL is required")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	seed, err := pgxpool.New(ctx, databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer seed.Close()
+
+	suffix := strings.ReplaceAll(time.Now().UTC().Format("20060102150405.000000000"), ".", "")
+	networkID, jobID := "analysis-net-"+suffix, "analysis-job-"+suffix
+	mustExec(t, ctx, seed, `INSERT INTO networks (id, passphrase, rpc_url, protocol_target) VALUES ($1, $2, 'https://soroban-testnet.stellar.org', 28)`, networkID, "passphrase-"+suffix)
+	for _, id := range []string{"cur", "cand"} {
+		mustExec(t, ctx, seed, `INSERT INTO artifacts (id, sha256, size_bytes, storage_key, content_type) VALUES ($1, $2, 1, $3, 'application/wasm')`, id+"-"+suffix, id+"-sha-"+suffix, id+"-key-"+suffix)
+	}
+	mustExec(t, ctx, seed, `INSERT INTO analysis_jobs (id, network_id, current_artifact_id, candidate_artifact_id, status, engine_version) VALUES ($1, $2, $3, $4, 'blocked', 'engine-test')`, jobID, networkID, "cur-"+suffix, "cand-"+suffix)
+	mustExec(t, ctx, seed, `INSERT INTO analysis_reports (id, analysis_job_id, current_wasm_hash, candidate_wasm_hash, status, findings, runtime_evidence, report, engine_version) VALUES ($1, $2, 'aa', 'bb', 'BLOCKED', '[{"code":"FUNC001"}]', '{}', '{"status":"BLOCKED","storage_compatibility":"NOT PROVEN BY STATIC ANALYSIS"}', 'engine-test')`, jobID+":r", jobID)
+	mustExec(t, ctx, seed, `INSERT INTO release_manifests (id, analysis_job_id, sha256, bytes) VALUES ($1, $2, $3, 'abc')`, jobID+":m", jobID, "manifest-sha-"+suffix)
+
+	repository, err := store.Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer repository.Close()
+	server := httptest.NewServer(New(repository, "example.com", "https://example.com"))
+	defer server.Close()
+	client := server.Client()
+
+	job := getJSON(t, client, server.URL+"/api/v1/analyses/"+jobID)
+	if job["id"] != jobID || job["status"] != "blocked" || job["candidate_artifact_id"] != "cand-"+suffix || job["engine_version"] != "engine-test" {
+		t.Fatalf("unexpected analysis job JSON: %v", job)
+	}
+	report := getJSON(t, client, server.URL+"/api/v1/analyses/"+jobID+"/report")
+	if report["current_wasm_hash"] != "aa" || report["candidate_wasm_hash"] != "bb" || report["status"] != "BLOCKED" {
+		t.Fatalf("unexpected report JSON: %v", report)
+	}
+	if inner, ok := report["report"].(map[string]any); !ok || inner["storage_compatibility"] != "NOT PROVEN BY STATIC ANALYSIS" {
+		t.Fatalf("report evidence not preserved: %v", report["report"])
+	}
+	manifest := getJSON(t, client, server.URL+"/api/v1/analyses/"+jobID+"/manifest")
+	if manifest["sha256"] != "manifest-sha-"+suffix || manifest["bytes"] != "YWJj" {
+		t.Fatalf("unexpected manifest JSON: %v", manifest)
+	}
+	listed := getJSONArray(t, client, server.URL+"/api/v1/analyses?limit=100")
+	found := false
+	for _, row := range listed {
+		found = found || row["id"] == jobID
+	}
+	if !found {
+		t.Fatalf("analysis %s missing from list", jobID)
+	}
+	missing, err := client.Get(server.URL + "/api/v1/analyses/does-not-exist")
+	if err != nil {
+		t.Fatal(err)
+	}
+	missing.Body.Close()
+	if missing.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", missing.StatusCode)
+	}
+}

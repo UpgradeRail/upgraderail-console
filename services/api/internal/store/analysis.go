@@ -12,21 +12,32 @@ import (
 type Session = auth.Session
 type AnalysisInput struct{ ID, Network, CurrentArtifactID, CandidateArtifactID, CreatedBy string }
 type AnalysisJob struct {
-	ID, Network, Status, EngineVersion, ErrorMessage string
-	CurrentArtifactID, CreatedBy                     *string
-	CandidateArtifactID                              string
-	CreatedAt                                        time.Time
-	StartedAt, FinishedAt                            *time.Time
+	ID                  string     `json:"id"`
+	Network             string     `json:"network"`
+	Status              string     `json:"status"`
+	EngineVersion       string     `json:"engine_version"`
+	ErrorMessage        string     `json:"error_message"`
+	CurrentArtifactID   *string    `json:"current_artifact_id"`
+	CandidateArtifactID string     `json:"candidate_artifact_id"`
+	CreatedBy           *string    `json:"created_by"`
+	CreatedAt           time.Time  `json:"created_at"`
+	StartedAt           *time.Time `json:"started_at"`
+	FinishedAt          *time.Time `json:"finished_at"`
 }
 type AnalysisReport struct {
-	Status, CurrentWASMHash, CandidateWASMHash, EngineVersion string
-	Findings, RuntimeEvidence, Report                         json.RawMessage
-	CreatedAt                                                 time.Time
+	Status            string          `json:"status"`
+	CurrentWASMHash   string          `json:"current_wasm_hash"`
+	CandidateWASMHash string          `json:"candidate_wasm_hash"`
+	Findings          json.RawMessage `json:"findings"`
+	RuntimeEvidence   json.RawMessage `json:"runtime_evidence"`
+	Report            json.RawMessage `json:"report"`
+	EngineVersion     string          `json:"engine_version"`
+	CreatedAt         time.Time       `json:"created_at"`
 }
 type Manifest struct {
-	SHA256    string
-	Bytes     []byte
-	CreatedAt time.Time
+	SHA256    string    `json:"sha256"`
+	Bytes     []byte    `json:"bytes"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 func (s *Store) GetSession(ctx context.Context, tokenHash string) (auth.Session, error) {
@@ -67,4 +78,21 @@ func (s *Store) GetManifest(ctx context.Context, analysisID string) (Manifest, e
 		return Manifest{}, fmt.Errorf("get manifest: %w", err)
 	}
 	return value, nil
+}
+
+func (s *Store) ListAnalyses(ctx context.Context, page Page) ([]AnalysisJob, error) {
+	rows, err := s.pool.Query(ctx, `SELECT id, network_id, status, COALESCE(engine_version,''), COALESCE(error_message,''), current_artifact_id, candidate_artifact_id, created_by, created_at, started_at, finished_at FROM analysis_jobs ORDER BY created_at DESC LIMIT $1 OFFSET $2`, page.Limit, page.Offset)
+	if err != nil {
+		return nil, fmt.Errorf("list analyses: %w", err)
+	}
+	defer rows.Close()
+	values := []AnalysisJob{}
+	for rows.Next() {
+		var value AnalysisJob
+		if err := rows.Scan(&value.ID, &value.Network, &value.Status, &value.EngineVersion, &value.ErrorMessage, &value.CurrentArtifactID, &value.CandidateArtifactID, &value.CreatedBy, &value.CreatedAt, &value.StartedAt, &value.FinishedAt); err != nil {
+			return nil, fmt.Errorf("scan analysis: %w", err)
+		}
+		values = append(values, value)
+	}
+	return values, rows.Err()
 }

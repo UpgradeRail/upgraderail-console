@@ -36,6 +36,7 @@ type Repository interface {
 	RevokeSession(context.Context, string, time.Time) error
 	GetSession(context.Context, string) (store.Session, error)
 	CreateAnalysis(context.Context, store.AnalysisInput) error
+	ListAnalyses(context.Context, store.Page) ([]store.AnalysisJob, error)
 	GetAnalysis(context.Context, string) (store.AnalysisJob, error)
 	GetAnalysisReport(context.Context, string) (store.AnalysisReport, error)
 	GetManifest(context.Context, string) (store.Manifest, error)
@@ -150,6 +151,14 @@ func New(repository Repository, domain, origin string) http.Handler {
 			return
 		}
 		write(w, http.StatusAccepted, map[string]string{"id": id, "status": "queued"})
+	})
+	mux.HandleFunc("GET /api/v1/analyses", func(w http.ResponseWriter, r *http.Request) {
+		page, ok := parsePage(w, r)
+		if !ok {
+			return
+		}
+		values, err := repository.ListAnalyses(r.Context(), page)
+		respond(w, values, err)
 	})
 	mux.HandleFunc("GET /api/v1/analyses/{id}", func(w http.ResponseWriter, r *http.Request) {
 		value, err := repository.GetAnalysis(r.Context(), r.PathValue("id"))
