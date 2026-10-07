@@ -37,6 +37,7 @@ expected_indexes=(
   controller_events_controller_ledger_idx
   controller_events_rpc_event_id_idx
   sessions_address_network_idx
+  proposals_needs_reconciliation_idx
 )
 
 for index in "${expected_indexes[@]}"; do
