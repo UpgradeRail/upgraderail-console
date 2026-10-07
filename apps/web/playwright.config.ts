@@ -3,7 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 // The suite runs the production build against a mocked Console API (see
 // e2e/mock-api.ts). It verifies UI behavior only; it is not evidence about a
 // deployed API, indexer, wallet, or Testnet.
-const WEB_PORT = 3100;
+const WEB_PORT = 3147;
 
 export default defineConfig({
   testDir: "./e2e",

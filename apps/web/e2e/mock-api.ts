@@ -50,7 +50,7 @@ export async function mockApi(page: Page, overrides: Overrides = {}) {
   await page.route(`${API_ORIGIN}/**`, async (route: Route) => {
     const url = new URL(route.request().url());
     const path = decodeURIComponent(url.pathname);
-    const headers = { "access-control-allow-origin": "http://127.0.0.1:3100", "access-control-allow-credentials": "true", "content-type": "application/json" };
+    const headers = { "access-control-allow-origin": "http://127.0.0.1:3147", "access-control-allow-credentials": "true", "content-type": "application/json" };
     const override = overrides[path];
     if (override) return route.fulfill({ status: override.status, headers, body: JSON.stringify(override.body) });
     if (path === "/api/v1/auth/session") return route.fulfill({ status: 401, headers, body: JSON.stringify({ error: { message: "No session" } }) });
