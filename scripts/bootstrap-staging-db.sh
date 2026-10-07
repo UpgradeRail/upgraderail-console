@@ -14,15 +14,20 @@ network_rpc_url="${STELLAR_RPC_URL:-https://soroban-testnet.stellar.org}"
 network_protocol_target="${STELLAR_PROTOCOL_TARGET:-28}"
 
 controller_contract_id="${UPGRADERAIL_CONTROLLER_ID:-CAJX4YE77N23K53MNJHYMCZIFXGMUEHSNZPHXAHDVZU5IYXUK4OQXTWS}"
-controller_start_ledger="${UPGRADERAIL_START_LEDGER:-5035000}"
 
 psql_cmd=(psql "$DATABASE_URL" -v ON_ERROR_STOP=1)
 
-echo "==> Applying migrations to database..."
-for migration in database/migrations/*.sql; do
-  echo "  Applying $migration..."
-  "${psql_cmd[@]}" -f "$migration" >/dev/null
-done
+# Migrations are not idempotent. Set SKIP_MIGRATIONS=1 to re-run only the
+# seed and verification steps against a database that is already migrated.
+if [[ "${SKIP_MIGRATIONS:-0}" == "1" ]]; then
+  echo "==> SKIP_MIGRATIONS=1: not applying migrations"
+else
+  echo "==> Applying migrations to database..."
+  for migration in database/migrations/*.sql; do
+    echo "  Applying $migration..."
+    "${psql_cmd[@]}" -f "$migration" >/dev/null
+  done
+fi
 
 echo "==> Seeding network record ($network_id)..."
 "${psql_cmd[@]}" -c "
@@ -36,8 +41,8 @@ SET passphrase = EXCLUDED.passphrase,
 
 echo "==> Seeding staging controller record ($controller_contract_id)..."
 "${psql_cmd[@]}" -c "
-INSERT INTO controllers (id, network_id, contract_id, start_ledger)
-VALUES ('${network_id}-${controller_contract_id:0:8}', '$network_id', '$controller_contract_id', $controller_start_ledger)
+INSERT INTO controllers (id, network_id, contract_id)
+VALUES ('${network_id}-${controller_contract_id:0:8}', '$network_id', '$controller_contract_id')
 ON CONFLICT (network_id, contract_id) DO NOTHING;
 " >/dev/null
 
