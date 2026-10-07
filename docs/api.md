@@ -15,13 +15,16 @@ The Console API uses JSON and versioned routes under `/api/v1`.
 | GET | `/api/v1/proposals` | indexer projection |
 | GET | `/api/v1/proposals/{id}` | indexer projection |
 | GET | `/api/v1/proposals/{id}/approvals` | indexer projection |
+| GET | `/api/v1/upgrades` | indexer projection |
+| GET | `/api/v1/events` | indexer event journal |
+| GET | `/api/v1/analyses` | analysis jobs, newest first |
 | GET | `/api/v1/analyses/{id}` | analysis job |
 | GET | `/api/v1/analyses/{id}/report` | Engine report |
-| GET | `/api/v1/analyses/{id}/manifest` | exact manifest bytes and hash |
+| GET | `/api/v1/analyses/{id}/manifest` | manifest SHA-256 and bytes (base64 in JSON) |
 
 List endpoints accept `limit` from 1 through 100 and nonnegative `offset` values.
 
-The `indexer projection` rows above are now populated by the indexer's read-model projection (previously these tables existed but were always empty, because only the raw event journal was written). All JSON response fields are `snake_case` (e.g. `current_wasm_hash`, `approval_count`, `expires_ledger`), matching the column names in `database/migrations/000001_initial.sql`; this is enforced with explicit `json` struct tags on `services/api/internal/store.{Controller,Fleet,Proposal,Approval,FleetUpgrade}` and covered by `services/api/internal/httpapi/api_test.go`, which asserts on the real JSON keys served over real HTTP. `proposals.kind` and `proposals.manifest_hash` are `null` until the indexer reconciles proposal kind data against the live contract (see `docs/limitations.md`) — this is not a bug, and the web UI's `DataList` component renders `null` as `—`.
+The `indexer projection` rows above are now populated by the indexer's read-model projection (previously these tables existed but were always empty, because only the raw event journal was written). All JSON response fields are `snake_case` (e.g. `current_wasm_hash`, `approval_count`, `expires_ledger`), matching the column names in `database/migrations/000001_initial.sql`; this is enforced with explicit `json` struct tags on `services/api/internal/store.{Controller,Fleet,Proposal,Approval,FleetUpgrade}` and covered by `services/api/internal/httpapi/api_test.go`, which asserts on the real JSON keys served over real HTTP. `proposals.kind` and `proposals.manifest_hash` are filled from the proposal's execution event, so they are real for executed proposals and `null` for proposals that are pending, cancelled, or expired. `null` means "not known to the indexer", never "none". See `docs/indexing.md`. Analysis job, report, and manifest responses are also `snake_case`.
 
 ## Wallet session
 

@@ -20,7 +20,7 @@ Before deployment, configure an absolute `ARTIFACT_LOCAL_DIR`, `UPGRADERAIL_ENGI
 - The initial migration creates schema only. Insert a `networks` row for each configured network before auth challenges, sessions, or analysis jobs can be created. For Testnet, use `INSERT INTO networks (id, passphrase, rpc_url, protocol_target) VALUES ('testnet', 'Test SDF Network ; September 2015', 'https://soroban-testnet.stellar.org', 28);` after migration. A missing row makes challenge creation fail with `challenge_unavailable`.
 - Insert a `controllers` row for each controller before starting the indexer, using the network and contract ID checked against the deployment record. The indexer fails clearly if the configured controller is absent. Migration `000002_indexer_event_order.sql` stores RPC event IDs for deterministic restart replay. A pre-migration journal with missing RPC event IDs cannot be resumed safely; rebuild it from a verified safe start ledger in a fresh database, then switch service traffic after comparison.
 - Artifact storage must be durable and shared between the API path that records artifact keys and the worker path that reads them.
-- `ARTIFACT_LOCAL_DIR` is acceptable only when the API and worker share a persistent filesystem. Otherwise, add and verify an object-store implementation before deployment.
+- `ARTIFACT_LOCAL_DIR` is acceptable only when the API and worker share a persistent filesystem. Otherwise, add and verify an object-store implementation (including SHA-256 verification on read) before deployment; none exists in this repository. Note also that the API has no artifact upload endpoint.
 
 ## Secrets
 

@@ -52,3 +52,7 @@ The retry was **confirmed on Stellar Testnet**:
 - RPC result: `SUCCESS`
 
 The console displayed the confirmed state. Public `getTransaction` returned the same hash, ledger, and status. The decoded envelope contained one invocation of the named operation on the recorded controller. No Mainnet transaction was made. This is verification of one maintenance write, not of governance proposal or fleet write flows.
+
+## Governance writes are not yet verified on Testnet
+
+The only verified Testnet write is `maintain_controller`. The create, approve, revoke, cancel, and execute governance flows have not been submitted from the browser. On 2026-10-07 the indexer was re-run live against the controller above from ledger 4,969,430 into a fresh database. It produced 12 events, 1 fleet, 2 proposals (`CreateFleet` and `UpgradeFleet`, both executed, with manifest hashes), 4 approvals, and 1 upgrade, and the API served them.

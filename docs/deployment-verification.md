@@ -35,3 +35,7 @@ These are verification addresses, not deployment URLs. The browser bundle was bu
 ## Readiness
 
 **NOT READY.** No public staging or production environment, durable shared artifact storage, or public HTTPS origin has been provisioned. Deployed browser wallet auth, deployed health/log checks, and rollback rehearsal remain unverified. The indexer journal and checkpoint now work, but API fleet/proposal read-model persistence is still absent. Local production-like checks do not constitute production deployment.
+
+## Addendum: 2026-10-07 local re-verification
+
+Local only, on a disposable PostgreSQL 16 container; still no public deployment. Go tests and vet pass, including the real-Engine worker tests (not skipped); a fresh-schema migration check and `scripts/verify-contract-bindings.sh` pass; `pnpm audit --prod` reports no known vulnerabilities; `pnpm lint`, `typecheck`, `test` (120 tests), `build`, and the Playwright suite (47 tests, mocked API) pass. A live run of the compiled indexer against Testnet produced the projection recorded in `docs/testnet-verification.md`, and the compiled API served those rows with `kind` and `manifest_hash` populated for both executed proposals. Public deployment, deployed logs, rollback rehearsal, durable shared artifact storage, and Testnet governance writes remain unverified.

@@ -14,7 +14,16 @@ The web app is available at `http://localhost:3000`. API, indexer, and worker se
 
 ## Status
 
-This repository is being implemented. Until an indexer is configured, public pages show explicit unavailable states rather than chain data.
+The console UI, API, indexer, and worker are implemented and verified locally against Stellar Testnet. No public staging or production deployment exists, and nothing here is evidence of one. Without a configured API and indexer, pages show explicit unavailable or empty states rather than chain data.
+
+What works (locally verified; see `docs/deployment-verification.md` and `docs/testnet-verification.md`):
+
+- Freighter connect, SEP-53 challenge signing, session creation, and transaction signing.
+- Read-model pages (overview, activity, fleets, proposals, upgrade history) backed by the indexer projection.
+- Preflight analysis pages that show Engine findings, a compatibility diff, and exact `NOT PROVEN` / `NOT TESTED` evidence states.
+- Governance transaction builders and UI flows for create, approve, revoke, cancel, and execute. They simulate before signing and require explicit confirmation before a Testnet submit.
+
+What is not proven or remains external: see `docs/limitations.md`.
 
 ## Related repositories
 
