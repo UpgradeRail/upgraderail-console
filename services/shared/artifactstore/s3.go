@@ -5,16 +5,19 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -137,15 +140,30 @@ func (s S3) Open(ctx context.Context, key string) (io.ReadCloser, error) {
 	return response.Body, nil
 }
 
-// sanitizeTransportError reduces a transport failure to a message that
-// names neither the endpoint nor the object key. Context cancellation and
-// deadline errors keep their identity so callers can still test for them.
+// sanitizeTransportError reduces a transport failure to a message that names
+// the failure class but neither the endpoint nor the object key, so a
+// misconfiguration (for example missing CA certificates) is diagnosable from
+// logs. Context cancellation and deadline errors keep their identity so
+// callers can still test for them.
 func sanitizeTransportError(err error) error {
+	var unknownAuthority x509.UnknownAuthorityError
+	var invalidCertificate x509.CertificateInvalidError
+	var hostname x509.HostnameError
+	var dns *net.DNSError
+	var netErr net.Error
 	switch {
 	case errors.Is(err, context.Canceled):
 		return context.Canceled
 	case errors.Is(err, context.DeadlineExceeded):
 		return context.DeadlineExceeded
+	case errors.As(err, &unknownAuthority), errors.As(err, &invalidCertificate), errors.As(err, &hostname):
+		return errors.New("object store TLS certificate verification failed")
+	case errors.As(err, &dns):
+		return errors.New("object store DNS lookup failed")
+	case errors.Is(err, syscall.ECONNREFUSED):
+		return errors.New("object store connection refused")
+	case errors.As(err, &netErr) && netErr.Timeout():
+		return errors.New("object store request timed out")
 	default:
 		return errors.New("object store unreachable")
 	}

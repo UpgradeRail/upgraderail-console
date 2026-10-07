@@ -242,3 +242,23 @@ func TestS3AgainstRealServer(t *testing.T) {
 		t.Fatalf("expected not-exist for missing object, got %v", err)
 	}
 }
+
+func TestS3TransportErrorsNameTheClassNotTheEndpoint(t *testing.T) {
+	// A TLS server with an untrusted certificate must be reported as a
+	// certificate failure (the missing-CA-bundle case), not a generic error.
+	server := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	defer server.Close()
+	store := S3{Endpoint: server.URL, Region: "r", Bucket: "b", AccessKeyID: "a", SecretAccessKey: "s", MaxBytes: 16}
+	_, err := store.Put(context.Background(), bytes.NewReader([]byte("wasm")))
+	if err == nil || !strings.Contains(err.Error(), "TLS certificate verification failed") {
+		t.Fatalf("expected a TLS verification error, got %v", err)
+	}
+	if strings.Contains(err.Error(), server.URL) || strings.Contains(err.Error(), "127.0.0.1") {
+		t.Fatalf("error must not echo the endpoint: %v", err)
+	}
+	store.Endpoint = "http://127.0.0.1:1"
+	_, err = store.Put(context.Background(), bytes.NewReader([]byte("wasm")))
+	if err == nil || !strings.Contains(err.Error(), "connection refused") {
+		t.Fatalf("expected connection refused, got %v", err)
+	}
+}
