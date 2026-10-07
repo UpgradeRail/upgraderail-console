@@ -30,9 +30,27 @@ The verification does not prove live Testnet current-versus-candidate simulation
 
 ## Governance write flows
 
-The SDK builders (`buildCreateProposal`, `buildApprove`, `buildRevokeApproval`, `buildCancelProposal`, `buildExecuteProposal`) and their UI panels are covered by unit tests with a mocked RPC server and by browser tests against a mocked API. **No create, approve, revoke, cancel, or execute transaction has been signed or submitted from the browser on Testnet.** Only the earlier `maintain_controller` write is verified on-chain (`docs/testnet-verification.md`). The builders live in `apps/web/src/lib/governance-tx.ts`, not in `packages/sdk`, which is empty.
+The SDK builders (`buildCreateProposal`, `buildApprove`, `buildRevokeApproval`, `buildCancelProposal`, `buildExecuteProposal`) and their UI panels are covered by unit tests with a mocked RPC server and by browser tests against a mocked API. The builders live in `apps/web/src/lib/governance-tx.ts`, not in `packages/sdk`, which is empty.
+
+**All five actions (create, approve, revoke, cancel, execute) have now been signed in a real Freighter popup and submitted to Stellar Testnet**, confirmed on public RPC, and reflected in the indexer/API projection; see `docs/testnet-verification.md` for transaction hashes, ledgers, and the disposable controller used. This exercised a real bug in indexer reconciliation (a fresh, unapproved proposal's `Option<u32>` fields decode as the bare JSON string `"void"`, not a nested object) and a real guard in the web app (`VERIFIED_CONTROLLER_ID`/`VERIFIED_CONTROLLER_WASM_HASH` in `governance-tx.ts` previously hard-coded to the single shared evidence controller with no override); both are now fixed, documented below and in `docs/testnet-verification.md`.
+
+Two things this pass did **not** prove:
+- A multi-approver (`threshold > 1`) flow with two distinct Freighter-held keys signing independently. The disposable controller used has a single approver (`threshold: 1`); the shared evidence controller's two real approvers' keys are not available in this environment (see `docs/testnet-verification.md`). The contract logic for multi-approver threshold counting is exercised only by unit tests and by the pre-existing executed proposals on the shared controller (which were approved via CLI, not the browser).
+- `UpdatePolicy` and `UpgradeController` proposal kinds from the browser. Only `CreateFleet` was exercised (the UI's create-proposal panel otherwise only drafts `UpgradeFleet`; see below). These two kinds share the same `create_proposal`/`approve`/`execute` code paths already verified, but have not themselves been built, signed, and submitted.
 
 Eligibility shown in the UI mirrors the controller's rules, but the contract is the authority: every action is simulated before signing and a rejected simulation returns no transaction.
+
+### The create-proposal UI only drafted `UpgradeFleet`, not `CreateFleet`
+
+Before this pass, `CreateProposalPanel` (`apps/web/src/components/create-proposal-panel.tsx`) could only draft an `UpgradeFleet` proposal from an analysis, and showed a dead-end "No indexed fleets" message when a controller had none — there was no way to originate a fleet's first release from the browser at all. A `CreateFleetPanel`, a `buildCreateFleetKind` draft builder (`apps/web/src/lib/proposal-draft.ts`), and a fleet tag input were added so a controller with zero indexed fleets gets a working `CreateFleet` form instead. The fleet id is derived deterministically via SHA-256 of the tag. The fleets list is now also filtered by the configured controller (`FleetRecord.controller_id`), which a prior build did not do, so a controller with no fleets of its own previously still showed the shared controller's fleet and the `UpgradeFleet` path.
+
+### Verified-controller guard
+
+`configuredContractId()`/`requireVerifiedNetwork()` in `governance-tx.ts` used to hard-fail for any contract id other than the single shared evidence controller. This pass generalized it to a short allowlist (`VERIFIED_CONTROLLERS`) that still defaults to, and still only ever includes, pre-registered Testnet contract ids with their exact expected WASM hash — it does not accept an arbitrary configured id. The disposable controller added for this verification pass is explicitly commented as disposable-Testnet-only, never Mainnet or production.
+
+### A `CreateFleet` proposal requires its initial WASM to already be uploaded on-chain
+
+`execute_proposal` on a `CreateFleet` proposal failed simulation the first time with `HostError: Error(Storage, MissingValue)` / `"Wasm does not exist"`, because the analysis used to draft the proposal referenced a WASM hash that had never been uploaded to Testnet as contract code (only its bytes existed locally, hashed by the Engine). Uploading that WASM (`stellar contract upload`) resolved it. This is correct contract behavior, not a bug: a fleet's initial executable must actually exist on-chain before a `CreateFleet` proposal naming it can execute.
 
 ## Analysis and artifacts
 
