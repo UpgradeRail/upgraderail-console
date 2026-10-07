@@ -4,6 +4,7 @@ import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { CreateProposalPanel } from "@/components/create-proposal-panel";
 import { PreflightView } from "@/components/preflight-view";
+import { decodeRouteParam } from "@/lib/route-param";
 import { api, ApiError } from "@/lib/api";
 import { proposalReadiness, type AnalysisJob, type AnalysisReportRecord, type ManifestRecord } from "@/lib/analysis";
 
@@ -30,7 +31,7 @@ export default function AnalysisDetailPage({
   params?: Promise<{ analysisId: string }>;
 } = {}) {
   const unwrapped = params ? use(params) : undefined;
-  const analysisId = directId ?? unwrapped?.analysisId ?? "";
+  const analysisId = decodeRouteParam(directId ?? unwrapped?.analysisId ?? "");
   const [fetched, setState] = useState<State>({ kind: "loading" });
   const state: State = analysisId ? fetched : { kind: "not_found" };
 

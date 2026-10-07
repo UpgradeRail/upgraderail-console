@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { SiteHeader } from "@/components/site-header";
+import { decodeRouteParam } from "@/lib/route-param";
 import { api, ApiError } from "@/lib/api";
 
 interface Fleet {
@@ -40,7 +41,7 @@ export default function ExploreFleetPage({
   params?: Promise<{ fleetId: string }>;
 } = {}) {
   const unwrappedParams = params ? use(params) : undefined;
-  const fleetId = directFleetId ?? unwrappedParams?.fleetId ?? "";
+  const fleetId = decodeRouteParam(directFleetId ?? unwrappedParams?.fleetId ?? "");
 
   const [fetched, setState] = useState<State>({ kind: "loading" });
   const state: State = fleetId ? fetched : { kind: "not_found" };
@@ -122,7 +123,7 @@ export default function ExploreFleetPage({
             <div className="verification-card" style={{ marginTop: 0 }}>
               <span className="eyebrow">PROVENANCE</span>
               <h2>Fleet Identity</h2>
-              <div className="verification-summary">
+              <dl className="verification-summary">
                 <div>
                   <dt>Tag</dt>
                   <dd>{state.fleet.tag}</dd>
@@ -147,7 +148,7 @@ export default function ExploreFleetPage({
                   <dt>Created Transaction</dt>
                   <dd>{state.fleet.created_transaction_hash}</dd>
                 </div>
-              </div>
+              </dl>
             </div>
 
             <div>

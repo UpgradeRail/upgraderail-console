@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { SiteHeader } from "@/components/site-header";
+import { decodeRouteParam } from "@/lib/route-param";
 import { api, ApiError } from "@/lib/api";
 
 interface Proposal {
@@ -45,7 +46,7 @@ export default function ExploreProposalPage({
   params?: Promise<{ proposalId: string }>;
 } = {}) {
   const unwrappedParams = params ? use(params) : undefined;
-  const proposalId = directProposalId ?? unwrappedParams?.proposalId ?? "";
+  const proposalId = decodeRouteParam(directProposalId ?? unwrappedParams?.proposalId ?? "");
 
   const [fetched, setState] = useState<State>({ kind: "loading" });
   const state: State = proposalId ? fetched : { kind: "not_found" };
@@ -127,7 +128,7 @@ export default function ExploreProposalPage({
             <div className="verification-card" style={{ marginTop: 0 }}>
               <span className="eyebrow">PROPOSAL STATE</span>
               <h2>Lifecycle</h2>
-              <div className="verification-summary">
+              <dl className="verification-summary">
                 <div>
                   <dt>Proposal ID</dt>
                   <dd>#{state.proposal.proposal_id}</dd>
@@ -168,7 +169,7 @@ export default function ExploreProposalPage({
                       : "Awaiting threshold"}
                   </dd>
                 </div>
-              </div>
+              </dl>
             </div>
 
             <div>

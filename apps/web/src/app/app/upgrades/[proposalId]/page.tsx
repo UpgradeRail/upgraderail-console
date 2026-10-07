@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { ProposalActions } from "@/components/proposal-actions";
+import { decodeRouteParam } from "@/lib/route-param";
 import { api, ApiError } from "@/lib/api";
 
 interface Proposal {
@@ -45,7 +46,7 @@ export default function ProposalDetailPage({
   params?: Promise<{ proposalId: string }>;
 } = {}) {
   const unwrappedParams = params ? use(params) : undefined;
-  const proposalId = directProposalId ?? unwrappedParams?.proposalId ?? "";
+  const proposalId = decodeRouteParam(directProposalId ?? unwrappedParams?.proposalId ?? "");
 
   const [fetched, setState] = useState<State>({ kind: "loading" });
   const state: State = proposalId ? fetched : { kind: "not_found" };
@@ -126,7 +127,7 @@ export default function ProposalDetailPage({
           <div className="verification-card" style={{ marginTop: 0 }}>
             <span className="eyebrow">LIFECYCLE & STATE</span>
             <h2>Proposal Details</h2>
-            <div className="verification-summary">
+            <dl className="verification-summary">
               <div>
                 <dt>Proposal ID</dt>
                 <dd>#{state.proposal.proposal_id}</dd>
@@ -187,7 +188,7 @@ export default function ProposalDetailPage({
                 <dt>Created Transaction</dt>
                 <dd>{state.proposal.created_transaction_hash}</dd>
               </div>
-            </div>
+            </dl>
           </div>
 
           {/* Approvals Table */}
@@ -220,11 +221,9 @@ export default function ProposalDetailPage({
                         <td>{a.approved_ledger}</td>
                         <td>
                           {a.revoked_ledger ? (
-                            <span style={{ color: "var(--danger)" }}>
-                              Revoked (ledger {a.revoked_ledger})
-                            </span>
+                            <span>✖ Revoked (ledger {a.revoked_ledger})</span>
                           ) : (
-                            <span style={{ color: "var(--accent-ink)" }}>Active</span>
+                            <span>✔ Active</span>
                           )}
                         </td>
                         <td title={a.transaction_hash}>{a.transaction_hash}</td>
