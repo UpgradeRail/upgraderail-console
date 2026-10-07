@@ -28,6 +28,7 @@ type config struct {
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	serveHealth(ctx)
 	if err := run(ctx); err != nil {
 		slog.Error("indexer stopped", "error", redact(err.Error()))
 		os.Exit(1)

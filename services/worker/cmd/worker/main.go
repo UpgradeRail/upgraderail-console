@@ -39,6 +39,7 @@ func main() {
 	defer store.Close()
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	serveHealth(ctx)
 	runner := engine.Runner{Binary: env("UPGRADERAIL_ENGINE_BIN", "upgraderail"), Timeout: 2 * time.Minute}
 	for ctx.Err() == nil {
 		ran, err := jobs.RunOne(ctx, store, runner, artifacts, workspaceRoot)
