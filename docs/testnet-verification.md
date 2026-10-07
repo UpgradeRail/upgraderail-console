@@ -56,3 +56,7 @@ The console displayed the confirmed state. Public `getTransaction` returned the 
 ## Governance writes are not yet verified on Testnet
 
 The only verified Testnet write is `maintain_controller`. The create, approve, revoke, cancel, and execute governance flows have not been submitted from the browser. On 2026-10-07 the indexer was re-run live against the controller above from ledger 4,969,430 into a fresh database. It produced 12 events, 1 fleet, 2 proposals (`CreateFleet` and `UpgradeFleet`, both executed, with manifest hashes), 4 approvals, and 1 upgrade, and the API served them.
+
+## Proposal reconciliation read (read-only, no write)
+
+Also on 2026-10-07, a `get_proposal` simulation (Soroban RPC `simulateTransaction`, never signed or submitted) against proposal 2 on the same controller decoded to `kind: UpgradeFleet` and `manifest_hash: cd8b679e2215a53c3bda375de6112d0d3c0203d017dfcdcfa5e1a63ef6ef088a` — matching the value independently read earlier in this document via `stellar contract invoke`. This confirms the indexer's new reconciliation RPC call (`services/indexer/internal/rpc.Client.GetProposalKind`) decodes the real contract's response correctly, not just a hand-built fixture. See `docs/indexing.md` for how reconciliation uses this read, and `docs/deployment-verification.md` for the full before/after reconciliation run.
