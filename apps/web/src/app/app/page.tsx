@@ -140,9 +140,9 @@ export default function ConsolePage() {
             {state.data.controllers.length === 0 ? (
               <p>No controller instance is currently indexed. Telemetry will appear after events are ingested.</p>
             ) : (
-              <div className="verification-summary">
+              <>
                 {state.data.controllers.map((c) => (
-                  <div key={c.id}>
+                  <dl className="verification-summary" key={c.id}>
                     <div>
                       <dt>Contract ID</dt>
                       <dd>{c.contract_id}</dd>
@@ -163,9 +163,9 @@ export default function ConsolePage() {
                       <dt>WASM Hash</dt>
                       <dd>{c.wasm_hash ?? "—"}</dd>
                     </div>
-                  </div>
+                  </dl>
                 ))}
-              </div>
+              </>
             )}
           </div>
 
