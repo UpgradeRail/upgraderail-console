@@ -5,13 +5,42 @@ Status: **Web Console Verified Live; Backend Services Unprovisioned on Public Cl
 
 ## 1. Staging Architecture
 
-The planned staging topology consists of:
-- **Web App**: Hosted on Vercel at `https://upgraderail-console.vercel.app`. Next.js 15 standalone application, monorepo root-aware build with frozen lockfile.
-- **API Service**: Long-running Go service (`services/api/cmd/api`) requiring persistent PostgreSQL access, cookie sessions (`SameSite=Lax`, `Secure`, `HttpOnly`), and CORS restricted to `https://upgraderail-console.vercel.app`.
-- **Worker Service**: Long-running Go worker (`services/worker/cmd/worker`) with real UpgradeRail Engine binary, processing analysis jobs from the database queue (`FOR UPDATE SKIP LOCKED`).
-- **Indexer Service**: Supervised long-running Go process (`services/indexer/cmd/indexer`) polling Stellar Testnet RPC (`https://soroban-testnet.stellar.org`), recording events into `controller_events` journal and advancing `indexer_checkpoints`.
-- **Database**: PostgreSQL 15+ with migrations 000001 through 000004 applied.
-- **Artifact Storage**: Persistent filesystem (`ARTIFACT_LOCAL_DIR`) shared between API and Worker.
+Chosen architecture (Option A: managed services, Stellar Testnet only):
+
+| Component | Provider | Region | Service name | Notes |
+|---|---|---|---|---|
+| Web | Vercel | global | `upgraderail-console` | Existing deployment, `https://upgraderail-console.vercel.app` |
+| PostgreSQL | Supabase (Free) | West EU (Ireland), `eu-west-1` | `upgraderail-staging` (ref `drkywpdasiaqsnhphufq`) | Postgres 15+, reached through the **session pooler** (IPv4) |
+| API | Render (Free web service, Docker) | Frankfurt | `upgraderail-api` | `services/api/Dockerfile` |
+| Indexer | Render (Free web service, Docker) | Frankfurt | `upgraderail-indexer` | `services/indexer/Dockerfile`; long-running loop with a liveness port |
+| Worker | Render (Free web service, Docker) | Frankfurt | `upgraderail-worker` | `services/worker/Dockerfile`; builds the Engine at the pinned commit |
+| Artifact storage | Supabase Storage (S3 protocol) | `eu-west-1` | bucket `upgraderail-artifacts` (private) | `ARTIFACT_BACKEND=s3` |
+
+Service definitions live in `render.yaml`. Public service URLs are recorded below only after they are deployed and verified.
+
+### Environment variables
+
+| Variable | Services | Source |
+|---|---|---|
+| `DATABASE_URL` | API, indexer, worker | Secret, entered in Render. Supabase session pooler URI, `sslmode=require` |
+| `WEB_ORIGIN`, `AUTH_DOMAIN` | API | `https://upgraderail-console.vercel.app`, `upgraderail-console.vercel.app` |
+| `API_ADDR` | API | `:10000` (Render's port) |
+| `PORT` | indexer, worker | `10000`, serves `GET /health/live` |
+| `ARTIFACT_BACKEND`, `ARTIFACT_S3_ENDPOINT`, `ARTIFACT_S3_REGION`, `ARTIFACT_S3_BUCKET` | API, worker | Public values in `render.yaml` |
+| `ARTIFACT_S3_ACCESS_KEY_ID`, `ARTIFACT_S3_SECRET_ACCESS_KEY` | API, worker | Secret, entered in Render |
+| `STELLAR_NETWORK`, `STELLAR_NETWORK_PASSPHRASE`, `STELLAR_RPC_URL` | indexer | `testnet`, `Test SDF Network ; September 2015`, `https://soroban-testnet.stellar.org` |
+| `UPGRADERAIL_CONTROLLER_ID` | indexer | `CAJX4YE77N23K53MNJHYMCZIFXGMUEHSNZPHXAHDVZU5IYXUK4OQXTWS` (disposable verified Testnet controller) |
+| `UPGRADERAIL_START_LEDGER` | indexer | `4969430` (ledger before the controller's first events; used only until a checkpoint exists) |
+| `UPGRADERAIL_ENGINE_BIN`, `UPGRADERAIL_WORK_DIR` | worker | Set in the worker image |
+
+### Free-tier limitations and behavior
+
+- **Sleep:** Render free web services spin down after 15 minutes without inbound HTTP traffic and take about a minute to wake. The API wakes on request. The indexer and worker are polling loops that make no inbound requests, so **they sleep unless an external monitor pings `/health/live` at least every 14 minutes**. While asleep, the indexer falls behind (it resumes from its checkpoint and does not lose events) and queued analysis jobs wait.
+- **This is a deliberate compromise.** Render has no free background workers. The indexer and worker are still long-running processes (not serverless handlers), run as web services only to satisfy the free tier's port requirement. A paid background worker removes the sleep behavior.
+- **RPC history window:** Testnet RPC retains roughly 120k ledgers (about 7 days). `UPGRADERAIL_START_LEDGER=4969430` is only valid while it is inside that window (on 2026-10-07 the oldest served ledger was 4,955,089, leaving roughly 20 hours). After the indexer writes its first checkpoint the start ledger is no longer used. A fresh database after that window needs a newer controller or start ledger.
+- **Restart behavior:** Render restarts a crashed container automatically. The indexer exits nonzero on configuration and invalid-response errors and resumes from `indexer_checkpoints`. The worker claims jobs with `FOR UPDATE SKIP LOCKED`.
+- **Supabase free tier:** 500 MB database, 1 GB storage, 50 MB per-file limit, projects pause after a week of inactivity. Artifacts are capped at 8 MiB by the API.
+- **Docker builds on the free tier:** the worker image compiles the Rust Engine, which can be slow on Render's free build resources.
 
 ## 2. Public Web Deployment Verification
 
