@@ -7,6 +7,7 @@ test.beforeEach(async ({ page }) => mockApi(page));
 const routes = [
   "/", "/product", "/explore", "/app", "/app/activity", "/app/fleets", "/app/fleets/ctrl%3Afleet1",
   "/app/upgrades", "/app/upgrades/ctrl%3A7", "/app/upgrades/history", "/app/analyses", "/app/analyses/an1",
+  "/app/analyses/new",
 ];
 
 async function settle(page: Page, route: string) {
