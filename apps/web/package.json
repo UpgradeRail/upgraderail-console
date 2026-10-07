@@ -7,7 +7,9 @@
     "build": "next build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:e2e": "NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:4010 next build",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@stellar/freighter-api": "6.0.1",
@@ -17,6 +19,8 @@
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.63.0",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "24.10.4",
     "@types/react": "19.2.14",

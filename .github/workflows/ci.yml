@@ -31,3 +31,19 @@ jobs:
           go-version: '1.25.1'
       - run: go test ./services/api/... ./services/indexer/... ./services/worker/...
       - run: go vet ./services/api/... ./services/indexer/... ./services/worker/...
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.8.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @upgraderail/web exec playwright install --with-deps chromium
+      - run: pnpm --filter @upgraderail/web build:e2e
+      - run: pnpm --filter @upgraderail/web test:e2e
