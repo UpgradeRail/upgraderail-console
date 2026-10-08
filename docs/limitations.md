@@ -69,3 +69,7 @@ Before this pass, `CreateProposalPanel` (`apps/web/src/components/create-proposa
 ## Browser test coverage
 
 Playwright (Chromium) runs the production build against a **mocked** Console API: route smoke tests, light/dark themes, reduced motion, keyboard navigation, and axe (WCAG 2.0/2.1 A and AA) on the main routes. It is not evidence about a deployed API, indexer, or Freighter. The Freighter extension is not automated: wallet connect and signing remain manual observations (`docs/wallet.md`).
+
+## Staging status (2026-10-08)
+
+Public staging is **NOT READY**. The API monitor exists, but the indexer and worker UptimeRobot keep-alive monitors are missing, so on the free Render tier those two services sleep after 15 minutes without traffic and indexing and analysis stall until they are woken. See `docs/staging-deployment.md` section 3.1. The staging proof (artifact upload, a ready job, a blocked job, persisted report and manifest with matching hash) was run through the public API with a throwaway Testnet key; a real Freighter sign-in on the public origin is still untested. Go tests skip the live-Testnet-RPC and real-S3 cases unless `STELLAR_RPC_LIVE=1` or `UPGRADERAIL_TEST_S3_ENDPOINT` is set; these were not enabled in the 2026-10-08 run.

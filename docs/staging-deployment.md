@@ -1,7 +1,7 @@
 # Staging Deployment Guide & Verification Record
 
-Date: 2026-10-07  
-Status: **Web console and backend services are publicly deployed and verified; overall status NOT READY (see section 6)**
+Date: 2026-10-08 (originally recorded 2026-10-07)  
+Status: **Web console and backend services are publicly deployed and verified after the `DATABASE_URL` rotation; overall status NOT READY until the indexer and worker keep-alive monitors exist or another sleep-prevention approach is verified (see sections 3.1 and 6)**
 
 ## 1. Staging Architecture
 
@@ -102,6 +102,32 @@ Render service IDs: API `srv-db3arl0m7kps73dlcoc0`, indexer `srv-db3arl0m7kps73d
 - The worker, running the real Engine (`upgraderail 0.1.0`, protocol profile 28), read both artifacts from object storage and finished `fleet_v1` to `fleet_v2_compatible` as **READY** and `fleet_v1` to `fleet_v2_breaking` as **BLOCKED**. Reports and manifests are served by the API.
 - Two earlier jobs failed with `object store unreachable` because the worker image lacked CA certificates. That was fixed in `cda225d` and they remain in the database as `failed`.
 
+### Post-rotation verification (2026-10-08)
+
+The staging database password was rotated in Supabase and `DATABASE_URL` was updated on the API, indexer and worker (URL-encoded). Everything below was done through the public console and public API, with a throwaway Testnet key for sign-in; no local API or local database was used for the staging proof.
+
+- **Service health.** API `/health/live` and `/health/ready` return 200; `/health/ready` performs a real database ping. Indexer and worker `/health/live` return 200 (these are static and do not touch the database). The API log history shows `password authentication failed (SQLSTATE 28P01)` startup failures before the final restart at 04:18 UTC (2026-10-08) and none after it. Those pre-fix lines include the Supabase username, project ref and pooler host, but no password.
+- **Indexer.** Render logs show `indexer batch committed events=0` every 10 seconds for the controller after the rotation, and a search for `ERROR` over the last hour returned nothing. Public Testnet RPC had no controller events after ledger 5,073,023, so `events=0` is expected.
+- **Artifact upload proof.** Public `POST /api/v1/artifacts` returned 201 for `fleet_v1` (2298 bytes), `fleet_v2_compatible` (2523 bytes) and `fleet_v2_breaking` (805 bytes). The server-computed SHA-256 matched the local SHA-256 for each. Re-uploads deduplicate to the same artifact id.
+- **Ready analysis job proof.** `fleet_v1` to `fleet_v2_compatible`: `POST /api/v1/analyses` returned 202 `queued`; the worker claimed it and it reached **ready** in about one second (job `fc3e6905a44d1768f05d021b4207767cccd27b21e568fc08`, started 04:39:48 UTC, finished 04:39:49 UTC). Engine: `upgraderail 0.1.0`, protocol profile 28.
+- **Blocked analysis job proof.** `fleet_v1` to `fleet_v2_breaking` reached **blocked** (job `75e0f8bd7878d299f292d8f44d68b428b38eb1fe962e9afa`, started 04:39:49 UTC, finished 04:39:49 UTC), also through the real Engine.
+- **Worker public staging proof.** The worker claimed both jobs, read both artifacts from Supabase object storage, ran the real Engine, and persisted the report and manifest for each, with no manual intervention. This is the first job processed by the worker after the `DATABASE_URL` rotation. The worker emits no per-job log lines, so its logs contain only startup output and no artifact payloads or secrets.
+- **Manifest hash verification.** For both jobs, `GET /api/v1/analyses/{id}/manifest` returned bytes whose SHA-256 equals the returned `sha256` (ready job `05ab525ffdb2c8c870fd4c8f976f047ebd836d9ccd36bccf8d4caa5e14d82bb9`; blocked job `e58fa67df23ece0d992c5991683981a66c2dd4790c637e7ea2af719417b49cd2`). Reports are served at `/report` (200).
+- **UI proof.** `https://upgraderail-console.vercel.app/app/analyses/fc3e6905a44d1768f05d021b4207767cccd27b21e568fc08` shows "Engine status: READY", engine version, both WASM hashes, the same manifest hash, and two info findings (`FUNC004`, `SPEC010`). Storage compatibility, authorization behavior and runtime simulation are shown as not proven / not tested / not configured. The blocked job was not opened in the UI.
+- **Not covered by this proof.** Public-staging Freighter sign-in was not exercised (a throwaway key signed the SEP-53 challenge, as before). A real Freighter sign-in on the public origin remains untested.
+
+### 3.1 Keep-alive monitors (UptimeRobot) - INCOMPLETE
+
+| Monitor | Status |
+| --- | --- |
+| API `https://upgraderail-api.onrender.com/health/live` | **Exists; first check passed** (up, 5-minute interval, 100%). It is currently named `upgraderail-api.onrender.com/health/live`, **not** the friendly name `upgraderail-api`. |
+| Indexer `https://upgraderail-indexer.onrender.com/health/live` | **Missing.** The UptimeRobot create-monitor form crashed ("Unexpected error has occurred") when the URL was entered, three times. |
+| Worker `https://upgraderail-worker.onrender.com/health/live` | **Missing.** Same cause; not attempted separately after the repeated form crashes. |
+
+- Alerts currently go to `adeosunelizabeth56@gmail.com` (the UptimeRobot account email). Confirm that this is the intended recipient or change it in UptimeRobot.
+- The public status page option was switched off during onboarding; no public status page was created. The test e-mail step was skipped.
+- **Public staging is still NOT READY until the indexer and worker keep-alive monitors are created, or another sleep-prevention approach is verified.** Without them both services sleep after 15 minutes without inbound traffic, the indexer stops advancing, and queued analyses wait.
+
 ### Web to API
 
 The deployed console issues `GET /api/v1/{controllers,fleets,proposals,upgrades,analyses}` to the public API from the Vercel origin (all 200), renders the indexed fleet, and logs no console errors. The CSP `connect-src` allows only `self`, the API origin and the Stellar Testnet RPC.
@@ -121,6 +147,12 @@ The deployed console issues `GET /api/v1/{controllers,fleets,proposals,upgrades,
 - `scripts/verify-fresh-migrations.sh` passes on an empty disposable database. It requires an empty database and must never be pointed at staging.
 - `scripts/verify-contract-bindings.sh` regenerates the committed bindings with no diff.
 - Go tests with a disposable PostgreSQL 16, the real Engine binary at the pinned commit and the contract fixtures: all pass. The live read-only Testnet tests pass against the public RPC. The only test still skipped is `TestS3AgainstRealServer`, which needs an S3 endpoint and credentials; the S3 signer is covered by the AWS documented signature vector and by the public staging upload and readback above.
+- Re-run on 2026-10-08 against HEAD `07777ae` (CI is green on that commit):
+  - `pnpm --filter @upgraderail/web test:e2e`: **55 of 55 passed**. The first `next build` stalled with no progress and was terminated; `apps/web/.next` was cleared and the single retry compiled and passed. It runs against a mocked API and is not evidence about the deployed stack.
+  - Go, normal mode (no environment, as CI runs it): **57 passed, 0 failed, 26 skipped**. 21 skip because `DATABASE_URL` is not set (two of those also need `UPGRADERAIL_ENGINE_BIN` and `UPGRADERAIL_CONTRACT_FIXTURE_DIR`), 4 because `STELLAR_RPC_LIVE=1` is not set, and 1 (`TestS3AgainstRealServer`) because `UPGRADERAIL_TEST_S3_ENDPOINT` is not set.
+  - Go with a disposable PostgreSQL 16, the Engine binary (reports `upgraderail 0.1.0`, protocol profile 28; the Engine checkout was at the pinned commit `78b385f`, but the binary's build date is older, so it was not rebuilt for this run) and the contract fixtures: **78 passed, 0 failed, 5 skipped**. The DB tests and the real worker/Engine tests ran. The remaining skips are the 4 live-Testnet-RPC tests (`STELLAR_RPC_LIVE` left unset) and `TestS3AgainstRealServer` (no S3 test endpoint).
+  - `scripts/verify-fresh-migrations.sh`: passes on an empty disposable database. `scripts/verify-contract-bindings.sh`: passes with no diff.
+  - The disposable container `ur-proof-pg` (127.0.0.1:55499) was stopped and removed afterwards; no other container or volume was touched.
 - The Docker images were not built locally; Render's builds are the evidence for them.
 
 ## 4. Rollback Runbook
@@ -152,6 +184,15 @@ All services are managed from the Render dashboard (`dashboard.render.com`). Aut
 - Restore into a new Supabase project, apply nothing else, then update `DATABASE_URL` on the three Render services.
 - `scripts/verify-fresh-migrations.sh` and `bootstrap-staging-db.sh` (without `SKIP_MIGRATIONS=1`) are for empty databases only.
 
+### Rotating `DATABASE_URL`
+1. Rotate the password in Supabase, then URL-encode it and set the new `DATABASE_URL` on the API, indexer and worker (Render -> service -> Environment). Deploys are manual.
+2. Verify, in this order: API `/health/ready` returns 200 (a real database ping); indexer logs show `batch committed` lines and no `SQLSTATE 28P01`; submit one analysis through the public API and confirm it reaches `ready` or `blocked`. The indexer and worker `/health/live` endpoints do not touch the database, so a 200 from them does not prove the new credential works.
+3. A bad credential makes the API exit at startup (`database startup failed ... SQLSTATE 28P01`) while Render keeps retrying; roll the environment value back and redeploy.
+4. Never paste the connection string into chat, tickets, or this repository.
+
+### Keep-alive monitors
+- Until the indexer and worker monitors exist (section 3.1), wake them by hand before relying on them: `curl https://upgraderail-indexer.onrender.com/health/live` and `curl https://upgraderail-worker.onrender.com/health/live`, then confirm indexer `batch committed` logs resume.
+
 ### Artifact storage cleanup
 - Objects are content-addressed under `<first two hex>/<sha256>` in bucket `upgraderail-artifacts`. Delete objects only after deleting the `analysis_jobs` and `artifacts` rows that reference them, otherwise analyses fail with a missing-artifact error.
 - Supabase dashboard -> Storage -> `upgraderail-artifacts` to remove objects.
@@ -165,8 +206,8 @@ All services are managed from the Render dashboard (`dashboard.render.com`). Aut
 ## 6. Known Limitations and Unverified Items
 
 - **Overall status: NOT READY.**
-- **Database password rotation not done.** The staging password was exposed in an operator terminal session during bootstrap. Rotate it in Supabase, update `DATABASE_URL` on the API, indexer and worker, then re-verify health, the indexer resuming from its checkpoint, worker job claiming, and that the old password is absent from logs.
-- **Keep-alive monitors not created.** The indexer and worker are free web services and sleep after 15 minutes without inbound traffic (observed: the indexer took about 17 seconds to answer after sleeping, and its checkpoint stopped advancing). Create two 5-minute GET monitors on their `/health/live` URLs. Until then, indexing and analysis depend on someone waking the services.
+- **Database password rotation done (2026-10-08).** Health, indexer resume and a worker job (ready and blocked) were verified after the rotation (section 3). A full log scan for the old password was not done; the Render log views read contained no credential.
+- **Keep-alive monitors incomplete (blocks READY).** Only the API monitor exists. The indexer and worker monitors are missing because the UptimeRobot create form crashed; see section 3.1. Alerts go to `adeosunelizabeth56@gmail.com`. Public staging stays NOT READY until both are created or another sleep-prevention approach is verified. Observed earlier: the indexer took about 17 seconds to answer after sleeping and its checkpoint stopped advancing.
 - **Indexer restart behavior** was observed only through a Render redeploy that resumed indexing; a no-duplicate restart check beyond the zero-duplicate evidence above is not recorded.
 - **Public-staging Freighter connect and a browser-signed governance write are untested.** Freighter was not available in the verification browser. Local Freighter governance writes were verified earlier (see `docs/testnet-verification.md`).
 - **Mainnet:** not deployed and not performed.
