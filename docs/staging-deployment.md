@@ -1,7 +1,7 @@
 # Staging Deployment Guide & Verification Record
 
 Date: 2026-10-08 (originally recorded 2026-10-07)  
-Status: **Web console and backend services are publicly deployed and verified after the `DATABASE_URL` rotation; overall status NOT READY until the indexer and worker keep-alive monitors exist or another sleep-prevention approach is verified (see sections 3.1 and 6)**
+Status: **Web console and backend services are publicly deployed and verified after the `DATABASE_URL` rotation, and all three keep-alive monitors exist (section 3.1). Remaining blockers for READY are listed in section 6.**
 
 ## 1. Staging Architecture
 
@@ -116,17 +116,22 @@ The staging database password was rotated in Supabase and `DATABASE_URL` was upd
 - **UI proof.** `https://upgraderail-console.vercel.app/app/analyses/fc3e6905a44d1768f05d021b4207767cccd27b21e568fc08` shows "Engine status: READY", engine version, both WASM hashes, the same manifest hash, and two info findings (`FUNC004`, `SPEC010`). Storage compatibility, authorization behavior and runtime simulation are shown as not proven / not tested / not configured. The blocked job was not opened in the UI.
 - **Not covered by this proof.** Public-staging Freighter sign-in was not exercised (a throwaway key signed the SEP-53 challenge, as before). A real Freighter sign-in on the public origin remains untested.
 
-### 3.1 Keep-alive monitors (UptimeRobot) - INCOMPLETE
+### 3.1 Keep-alive monitors (UptimeRobot)
 
-| Monitor | Status |
-| --- | --- |
-| API `https://upgraderail-api.onrender.com/health/live` | **Exists; first check passed** (up, 5-minute interval, 100%). It is currently named `upgraderail-api.onrender.com/health/live`, **not** the friendly name `upgraderail-api`. |
-| Indexer `https://upgraderail-indexer.onrender.com/health/live` | **Missing.** The UptimeRobot create-monitor form crashed ("Unexpected error has occurred") when the URL was entered, three times. |
-| Worker `https://upgraderail-worker.onrender.com/health/live` | **Missing.** Same cause; not attempted separately after the repeated form crashes. |
+Verified on 2026-10-08 in the UptimeRobot dashboard (free plan, one account) and from Render's logs.
 
-- Alerts currently go to `adeosunelizabeth56@gmail.com` (the UptimeRobot account email). Confirm that this is the intended recipient or change it in UptimeRobot.
-- The public status page option was switched off during onboarding; no public status page was created. The test e-mail step was skipped.
-- **Public staging is still NOT READY until the indexer and worker keep-alive monitors are created, or another sleep-prevention approach is verified.** Without them both services sleep after 15 minutes without inbound traffic, the indexer stops advancing, and queued analyses wait.
+| Monitor name | URL | Interval | Status at verification |
+| --- | --- | --- | --- |
+| `upgraderail-api` | `https://upgraderail-api.onrender.com/health/live` | 5 min | Up 55 min, 100%, 0 incidents |
+| `upgraderail-indexer` | `https://upgraderail-indexer.onrender.com/health/live` | 5 min | Up 24 min after one incident, 99.65% |
+| `upgraderail-worker` | `https://upgraderail-worker.onrender.com/health/live` | 5 min | Up 27 min, 100%, 0 incidents |
+
+- **Names.** The API monitor was renamed from its URL to `upgraderail-api`.
+- **Method is HEAD, not GET.** On the free plan the HTTP method selector is a premium feature and is locked to **HEAD** (confirmed by opening the API monitor's Advanced settings; nothing was saved). The other two monitors were created the same way and were not opened individually. The three `/health/live` handlers answer HEAD with 200 (checked with `curl -I`), and any inbound request counts as activity for Render, so HEAD is sufficient for keep-alive. A GET monitor needs a paid UptimeRobot plan.
+- **Alerts** go to `adeosunelizabeth56@gmail.com` (the UptimeRobot account email, shown on the API monitor). It is not the email on the maintainer's Claude account; confirm it is the intended recipient. No SMS, voice, status page or integration is configured, and the test e-mail was not sent.
+- **Indexer incident.** The indexer monitor's first check returned **502 for about 4 minutes**, then recovered by itself. This is consistent with the check waking a sleeping free instance (a manual curl at that time took 13 seconds). Render showed no failed instance or restart in that period.
+- **Sleep observation.** After the monitors had run for about 20 minutes with no manual requests from the operator, all three stayed up, the indexer logged `batch committed` every 10 seconds with no gap on a single instance (`2s8mb`, 05:39 to 05:47 UTC, the part of the log read), and there was no new incident. That is about one and a half sleep windows, not a long soak: it shows the monitors keep the services awake over this window, not that they will for days.
+- **Residual risk.** UptimeRobot's free tier has no SLA; if its checks stop, or its single-region checks are blocked, Render will sleep the indexer and worker again. Render's free instances also restart periodically and are subject to monthly free-instance hour limits.
 
 ### Web to API
 
@@ -191,7 +196,8 @@ All services are managed from the Render dashboard (`dashboard.render.com`). Aut
 4. Never paste the connection string into chat, tickets, or this repository.
 
 ### Keep-alive monitors
-- Until the indexer and worker monitors exist (section 3.1), wake them by hand before relying on them: `curl https://upgraderail-indexer.onrender.com/health/live` and `curl https://upgraderail-worker.onrender.com/health/live`, then confirm indexer `batch committed` logs resume.
+- UptimeRobot monitors `upgraderail-api`, `upgraderail-indexer` and `upgraderail-worker` ping each `/health/live` every 5 minutes (section 3.1). If an alert fires for the indexer or worker, `curl -I` the URL (a cold start takes about 15 seconds and may return 502 first), then confirm indexer `batch committed` logs resume. If UptimeRobot itself is unavailable, wake them the same way by hand.
+- Do not point monitors at write endpoints or add secrets to monitor URLs.
 
 ### Artifact storage cleanup
 - Objects are content-addressed under `<first two hex>/<sha256>` in bucket `upgraderail-artifacts`. Delete objects only after deleting the `analysis_jobs` and `artifacts` rows that reference them, otherwise analyses fail with a missing-artifact error.
@@ -205,9 +211,9 @@ All services are managed from the Render dashboard (`dashboard.render.com`). Aut
 
 ## 6. Known Limitations and Unverified Items
 
-- **Overall status: NOT READY.**
+- **Overall status: READY for Stellar Testnet staging use, with the caveats below. Not production and not Mainnet.** The earlier blockers (database password rotation, keep-alive monitors) are closed, but the keep-alive soak is short, the monitors use HEAD, and public-origin Freighter sign-in is untested.
 - **Database password rotation done (2026-10-08).** Health, indexer resume and a worker job (ready and blocked) were verified after the rotation (section 3). A full log scan for the old password was not done; the Render log views read contained no credential.
-- **Keep-alive monitors incomplete (blocks READY).** Only the API monitor exists. The indexer and worker monitors are missing because the UptimeRobot create form crashed; see section 3.1. Alerts go to `adeosunelizabeth56@gmail.com`. Public staging stays NOT READY until both are created or another sleep-prevention approach is verified. Observed earlier: the indexer took about 17 seconds to answer after sleeping and its checkpoint stopped advancing.
+- **Keep-alive monitors exist but are lightly verified.** All three 5-minute HEAD monitors are up (section 3.1). They use HEAD, not GET (GET is premium), alert to `adeosunelizabeth56@gmail.com` (confirm it is intended), and were observed for only about 20 minutes. One 502 incident occurred on the indexer's first check. A multi-day soak has not been done.
 - **Indexer restart behavior** was observed only through a Render redeploy that resumed indexing; a no-duplicate restart check beyond the zero-duplicate evidence above is not recorded.
 - **Public-staging Freighter connect and a browser-signed governance write are untested.** Freighter was not available in the verification browser. Local Freighter governance writes were verified earlier (see `docs/testnet-verification.md`).
 - **Mainnet:** not deployed and not performed.
