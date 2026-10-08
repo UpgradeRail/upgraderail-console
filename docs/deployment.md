@@ -93,4 +93,4 @@ To provision and initialize a staging PostgreSQL database (e.g., Supabase, Neon,
 
 ## Current Status
 
-No public production or staging web, API, indexer, worker, database, artifact store, or URLs have been provisioned from this repository. The local production-like pass is recorded in `docs/deployment-verification.md`. The indexer currently journals events and maintains a checkpoint; it does not yet populate the API's fleet and proposal read-model tables. This local pass does not establish public deployment readiness.
+A public Testnet staging environment (Vercel web, Render API, indexer and worker, Supabase PostgreSQL and S3-compatible Storage) is deployed and recorded in `docs/staging-deployment.md`; its status is **READY WITH CAVEATS**. No production or Mainnet deployment has been performed. The earlier local production-like pass in `docs/deployment-verification.md` is historical and has been superseded by the staging evidence. The indexer projects controller events into the API's fleet and proposal read models; remaining gaps are in `docs/limitations.md`.

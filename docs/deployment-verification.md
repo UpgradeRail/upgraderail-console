@@ -34,7 +34,9 @@ These are verification addresses, not deployment URLs. The browser bundle was bu
 
 ## Readiness
 
-**NOT READY.** No public staging or production environment, durable shared artifact storage, or public HTTPS origin has been provisioned. Deployed browser wallet auth, deployed health/log checks, and rollback rehearsal remain unverified. The indexer journal and checkpoint now work, but API fleet/proposal read-model persistence is still absent. Local production-like checks do not constitute production deployment.
+> **Superseded (2026-10-08).** This section is a historical record of the 2026-10-03 local production-like pass and is kept as written. Public Testnet staging has since been deployed and verified; its current status is **READY WITH CAVEATS** in `docs/staging-deployment.md`. Production/Mainnet remains not performed.
+
+**NOT READY (as of 2026-10-03).** No public staging or production environment, durable shared artifact storage, or public HTTPS origin has been provisioned. Deployed browser wallet auth, deployed health/log checks, and rollback rehearsal remain unverified. The indexer journal and checkpoint now work, but API fleet/proposal read-model persistence is still absent. Local production-like checks do not constitute production deployment.
 
 ## Addendum: 2026-10-07 local re-verification
 

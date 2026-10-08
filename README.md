@@ -14,7 +14,20 @@ The web app is available at `http://localhost:3000`. API, indexer, and worker se
 
 ## Status
 
-The console UI, API, indexer, and worker are implemented and verified locally against Stellar Testnet. No public staging or production deployment exists, and nothing here is evidence of one. Without a configured API and indexer, pages show explicit unavailable or empty states rather than chain data.
+The console UI, API, indexer, and worker are implemented and verified against Stellar Testnet, locally and on a public Testnet staging deployment. Without a configured API and indexer, pages show explicit unavailable or empty states rather than chain data.
+
+- Repository implementation: **READY**
+- Public Testnet staging: **READY WITH CAVEATS**
+- Production/Mainnet launch: **NOT PERFORMED**
+
+Public Testnet staging (Vercel web, Render API, indexer and worker, Supabase PostgreSQL and Storage):
+
+- Web: https://upgraderail-console.vercel.app
+- API: https://upgraderail-api.onrender.com/health/live
+- Indexer: https://upgraderail-indexer.onrender.com/health/live
+- Worker: https://upgraderail-worker.onrender.com/health/live
+
+Staging runs on free-tier hosting with UptimeRobot keep-alive checks that were observed only briefly. A real Freighter sign-in on the public origin, multi-approver flows, and `UpdatePolicy`/`UpgradeController` proposals from the browser are not yet verified. Staging is Testnet only and is not evidence of production or Mainnet readiness. See `docs/staging-deployment.md` for the evidence and caveats.
 
 What works (locally verified; see `docs/deployment-verification.md` and `docs/testnet-verification.md`):
 
