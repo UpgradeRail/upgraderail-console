@@ -12,6 +12,7 @@
 UpgradeRail Console is the browser-facing operations layer for UpgradeRail. It connects contract analysis, indexed governance state, wallet approvals, artifact uploads, and governed Testnet execution in one interface while keeping transaction signing in the user's wallet.
 
 <p align="center">
+  <a href="https://upgraderail.github.io/">Documentation</a> |
   <a href="https://upgraderail-console.vercel.app">Live Testnet Console</a> |
   <a href="https://github.com/UpgradeRail/upgraderail-contracts">Contracts</a> |
   <a href="https://github.com/UpgradeRail/upgraderail-engine">Engine</a> |
